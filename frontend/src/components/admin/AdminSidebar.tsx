@@ -14,6 +14,8 @@ import {
   Activity,
   Server,
   Megaphone,
+  Target,
+  BarChart3,
   X,
 } from 'lucide-react'
 import { AdminLanguageToggle } from '@/components/admin/AdminLanguageToggle'
@@ -23,6 +25,8 @@ const NAV_ITEMS = [
   { to: '/admin/users', icon: Users, labelKey: 'admin_nav_users' },
   { to: '/admin/payments', icon: CreditCard, labelKey: 'admin_nav_payments' },
   { to: '/admin/promos', icon: Tag, labelKey: 'admin_nav_promos' },
+  { to: '/admin/ads', icon: Target, labelKey: 'admin_nav_ads' },
+  { to: '/admin/insights', icon: BarChart3, labelKey: 'admin_nav_insights' },
   { to: '/admin/broadcast', icon: Megaphone, labelKey: 'admin_nav_broadcast' },
 ]
 

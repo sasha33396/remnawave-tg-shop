@@ -12,6 +12,8 @@ from .broadcast import router as broadcast_router
 from .panel_stats import router as panel_stats_router
 from .panel_nodes import router as panel_nodes_router
 from .panel_users import router as panel_users_router
+from .ads import router as ads_router
+from .insights import router as insights_router
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
 admin_router.include_router(auth_router)
@@ -27,3 +29,5 @@ admin_router.include_router(broadcast_router)
 admin_router.include_router(panel_stats_router)
 admin_router.include_router(panel_nodes_router)
 admin_router.include_router(panel_users_router)
+admin_router.include_router(ads_router)
+admin_router.include_router(insights_router)
