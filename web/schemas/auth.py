@@ -10,6 +10,7 @@ class TelegramCallbackRequest(BaseModel):
     code: str
     code_verifier: str
     redirect_uri: str
+    ad_param: Optional[str] = None
 
 
 class TelegramConfigResponse(BaseModel):
@@ -29,6 +30,7 @@ class RegisterVerifyRequest(BaseModel):
     email: EmailStr
     code: str
     password: str
+    ad_param: Optional[str] = None
 
     @field_validator("email", mode="before")
     @classmethod

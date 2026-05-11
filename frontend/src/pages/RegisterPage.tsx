@@ -10,6 +10,7 @@ import { registerSendCode, registerCheckCode, registerVerify } from '@/api/auth'
 import { ApiError } from '@/api/client'
 import { useBrandingContext } from '@/hooks/BrandingProvider'
 import { resolveLogoUrl } from '@/hooks/useBranding'
+import { getStoredAdParam } from '@/lib/ad-attribution'
 import type { PublicBrandingResponse } from '@/api/admin/branding'
 
 type Step = 'email' | 'code' | 'password'
@@ -106,7 +107,7 @@ export function RegisterPage() {
 
     setIsLoading(true)
     try {
-      const resp = await registerVerify(email, code, password)
+      const resp = await registerVerify(email, code, password, getStoredAdParam())
       setAuth(resp)
       navigate('/dashboard', { replace: true })
     } catch (err) {

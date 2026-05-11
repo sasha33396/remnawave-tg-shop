@@ -1,5 +1,5 @@
-import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { lazy, Suspense, useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider } from '@/auth/AuthProvider'
 import { ProtectedRoute } from '@/auth/ProtectedRoute'
 import { AdminRoute } from '@/auth/AdminRoute'
@@ -7,6 +7,7 @@ import { ToastProvider } from '@/lib/toast-context'
 import { Toaster } from '@/components/ui/toaster'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { BrandingProvider } from '@/hooks/BrandingProvider'
+import { captureAdParamFromUrl } from '@/lib/ad-attribution'
 
 const LegalPage = lazy(() => import('@/pages/LegalPage').then(({ LegalPage }) => ({ default: LegalPage })))
 const LoginPage = lazy(() => import('@/pages/LoginPage').then(({ LoginPage }) => ({ default: LoginPage })))
@@ -50,6 +51,16 @@ function RouteLoader() {
   )
 }
 
+function AdAttributionTracker() {
+  const location = useLocation()
+
+  useEffect(() => {
+    if (location.search) captureAdParamFromUrl(location.search)
+  }, [location.search])
+
+  return null
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -57,6 +68,7 @@ export default function App() {
         <Toaster />
         <AuthProvider>
           <BrandingProvider>
+            <AdAttributionTracker />
             <Suspense fallback={<RouteLoader />}>
             <Routes>
             {/* Public */}

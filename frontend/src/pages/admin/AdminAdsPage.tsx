@@ -170,8 +170,7 @@ export function AdminAdsPage() {
     queryClient.invalidateQueries({ queryKey: ['admin', 'ads'] })
   }
 
-  async function copyAdLink(item: AdminAdCampaignItem) {
-    const text = item.telegram_link ?? item.start_param
+  async function copyText(text: string) {
     try {
       await navigator.clipboard.writeText(text)
     } catch {
@@ -182,6 +181,14 @@ export function AdminAdsPage() {
       document.execCommand('copy')
       document.body.removeChild(el)
     }
+  }
+
+  async function copyAdLink(item: AdminAdCampaignItem, kind: 'telegram' | 'web') {
+    const text =
+      kind === 'web'
+        ? item.web_link ?? item.start_param
+        : item.telegram_link ?? item.start_param
+    await copyText(text)
     setCopiedCampaignId(item.ad_campaign_id)
     toast.success(t('copied'))
     window.setTimeout(() => setCopiedCampaignId(null), 2000)
@@ -195,23 +202,30 @@ export function AdminAdsPage() {
     { key: 'source', header: t('admin_ads_source_label'), size: 140, render: (r) => <span className="font-medium">{r.source}</span> },
     {
       key: 'start_param',
-      header: t('admin_ads_start_param_label'),
-      size: 250,
-      minSize: 190,
+      header: t('admin_ads_links_label'),
+      size: 290,
+      minSize: 220,
       render: (r) => {
-        const display = r.telegram_link ?? `start=${r.start_param}`
         const copied = copiedCampaignId === r.ad_campaign_id
         return (
-          <div className="flex min-w-0 items-center gap-2">
-            <code className="min-w-0 truncate text-xs" title={display}>{display}</code>
-            <button
-              type="button"
-              onClick={() => copyAdLink(r)}
-              className="shrink-0 rounded p-1.5 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
-              title={t('admin_ads_copy_link')}
-            >
-              {copied ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
-            </button>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            {([
+              [t('admin_ads_tg_link'), r.telegram_link ?? `start=${r.start_param}`, 'telegram'],
+              [t('admin_ads_web_link'), r.web_link ?? `?ad=${r.start_param}`, 'web'],
+            ] as const).map(([label, link, kind]) => (
+              <div key={kind} className="flex min-w-0 items-center gap-2">
+                <span className="w-8 shrink-0 text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">{label}</span>
+                <code className="min-w-0 truncate text-xs" title={link}>{link}</code>
+                <button
+                  type="button"
+                  onClick={() => copyAdLink(r, kind)}
+                  className="shrink-0 rounded p-1 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
+                  title={t('admin_ads_copy_link')}
+                >
+                  {copied ? <Check size={13} className="text-green-600" /> : <Copy size={13} />}
+                </button>
+              </div>
+            ))}
           </div>
         )
       },

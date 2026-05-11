@@ -4,6 +4,7 @@ import { useAuth } from '@/auth/useAuth'
 import { authTelegram } from '@/api/auth'
 import { linkTelegram } from '@/api/profile'
 import { TG_MODE_KEY, TG_PKCE_KEY, TG_STATE_KEY } from '@/pages/LoginPage'
+import { getStoredAdParam } from '@/lib/ad-attribution'
 
 /**
  * Handles the redirect from Telegram after OpenID Connect Authorization Code flow.
@@ -65,7 +66,12 @@ export function TelegramCallbackPage() {
       return
     }
 
-    authTelegram({ code, code_verifier: codeVerifier, redirect_uri: redirectUri })
+    authTelegram({
+      code,
+      code_verifier: codeVerifier,
+      redirect_uri: redirectUri,
+      ad_param: getStoredAdParam(),
+    })
       .then((resp) => {
         setAuth(resp)
         navigate('/dashboard', { replace: true })

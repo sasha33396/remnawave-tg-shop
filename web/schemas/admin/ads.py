@@ -16,6 +16,7 @@ class AdminAdCampaignItem(BaseModel):
     source: str
     start_param: str
     telegram_link: Optional[str] = None
+    web_link: Optional[str] = None
     cost: float
     is_active: bool
     created_at: Optional[UTCDatetime] = None

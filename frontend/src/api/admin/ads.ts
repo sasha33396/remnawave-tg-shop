@@ -12,6 +12,7 @@ export interface AdminAdCampaignItem {
   source: string
   start_param: string
   telegram_link: string | null
+  web_link: string | null
   cost: number
   is_active: boolean
   created_at: string | null

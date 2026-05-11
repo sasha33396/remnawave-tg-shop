@@ -22,12 +22,16 @@ def _to_item(campaign, stats: dict, settings: Settings) -> AdminAdCampaignItem:
     telegram_link = None
     if settings.BOT_USERNAME:
         telegram_link = f"https://t.me/{settings.BOT_USERNAME.lstrip('@')}?start={campaign.start_param}"
+    web_link = None
+    if settings.WEB_FRONTEND_URL:
+        web_link = f"{settings.WEB_FRONTEND_URL.rstrip('/')}?ad={campaign.start_param}"
 
     return AdminAdCampaignItem(
         ad_campaign_id=campaign.ad_campaign_id,
         source=campaign.source,
         start_param=campaign.start_param,
         telegram_link=telegram_link,
+        web_link=web_link,
         cost=float(campaign.cost or 0),
         is_active=bool(campaign.is_active),
         created_at=campaign.created_at,

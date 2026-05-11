@@ -21,6 +21,7 @@ export interface TelegramCallbackData {
   code: string
   code_verifier: string
   redirect_uri: string
+  ad_param?: string | null
 }
 
 export async function authTelegram(data: TelegramCallbackData): Promise<TokenResponse> {
@@ -51,10 +52,11 @@ export async function registerVerify(
   email: string,
   code: string,
   password: string,
+  ad_param?: string | null,
 ): Promise<TokenResponse> {
   return apiRequest<TokenResponse>('/auth/register/verify', {
     method: 'POST',
-    body: JSON.stringify({ email, code, password }),
+    body: JSON.stringify({ email, code, password, ad_param }),
   })
 }
 

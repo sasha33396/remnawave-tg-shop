@@ -33,6 +33,7 @@ from core.dal.account_dal import (
     get_account_by_email,
     get_account_by_telegram_id,
     create_account,
+    ensure_site_user_for_account,
     update_account,
 )
 from core.dal.email_verification_code_dal import (
@@ -46,6 +47,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 REFRESH_COOKIE_NAME = "refresh_token"
 REFRESH_COOKIE_MAX_AGE = 7 * 24 * 3600  # 7 days in seconds
+AD_PARAM_PATTERN = r"^[A-Za-z0-9_\-]{2,64}$"
 
 
 def _set_refresh_cookie(response: Response, token: str, secure: bool = True) -> None:
@@ -93,6 +95,36 @@ async def _issue_tokens(
     secure = not settings.WEB_API_URL.startswith("http://localhost")
     _set_refresh_cookie(response, refresh_token, secure=secure)
     return {"access_token": access_token}
+
+
+async def _apply_ad_attribution(
+    db: AsyncSession,
+    *,
+    account,
+    ad_param: Optional[str],
+    telegram_user_id: Optional[int] = None,
+) -> None:
+    import re
+    from core.dal import ad_dal
+
+    clean = (ad_param or "").strip()
+    if not re.match(AD_PARAM_PATTERN, clean):
+        return
+
+    campaign = await ad_dal.get_campaign_by_start_param(db, clean)
+    if not campaign or not campaign.is_active:
+        return
+
+    user_id: Optional[int] = telegram_user_id
+    if user_id is None:
+        site_user = await ensure_site_user_for_account(db, account)
+        user_id = int(site_user.user_id)
+
+    await ad_dal.ensure_attribution(
+        db,
+        user_id=int(user_id),
+        campaign_id=campaign.ad_campaign_id,
+    )
 
 
 # ─── GET /auth/telegram/config ──────────────────────────────────────────────
@@ -171,6 +203,13 @@ async def auth_telegram(
             is_email_verified=False,
             language_code=language_code,
         )
+
+    await _apply_ad_attribution(
+        db,
+        account=account,
+        ad_param=data.ad_param,
+        telegram_user_id=tg_user_id,
+    )
 
     tokens = await _issue_tokens(account.id, settings, redis, response)
 
@@ -276,6 +315,8 @@ async def register_verify(
             password_hash=hash_password(body.password),
             is_email_verified=True,
         )
+
+    await _apply_ad_attribution(db, account=account, ad_param=body.ad_param)
 
     tokens = await _issue_tokens(account.id, settings, redis, response)
 
