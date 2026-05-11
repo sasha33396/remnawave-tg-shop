@@ -1,0 +1,1264 @@
+diff --git a/frontend/src/App.tsx b/frontend/src/App.tsx
+index d2417a8..2890d47 100644
+--- a/frontend/src/App.tsx
++++ b/frontend/src/App.tsx
+@@ -33,6 +33,8 @@ const AdminUsersPage = lazy(() => import('@/pages/admin/AdminUsersPage').then(({
+ const AdminUserDetailPage = lazy(() => import('@/pages/admin/AdminUserDetailPage').then(({ AdminUserDetailPage }) => ({ default: AdminUserDetailPage })))
+ const AdminPaymentsPage = lazy(() => import('@/pages/admin/AdminPaymentsPage').then(({ AdminPaymentsPage }) => ({ default: AdminPaymentsPage })))
+ const AdminPromosPage = lazy(() => import('@/pages/admin/AdminPromosPage').then(({ AdminPromosPage }) => ({ default: AdminPromosPage })))
++const AdminAdsPage = lazy(() => import('@/pages/admin/AdminAdsPage').then(({ AdminAdsPage }) => ({ default: AdminAdsPage })))
++const AdminFunnelPage = lazy(() => import('@/pages/admin/AdminFunnelPage').then(({ AdminFunnelPage }) => ({ default: AdminFunnelPage })))
+ const PanelStatsPage = lazy(() => import('@/pages/admin/PanelStatsPage').then(({ PanelStatsPage }) => ({ default: PanelStatsPage })))
+ const NodesPage = lazy(() => import('@/pages/admin/NodesPage').then(({ NodesPage }) => ({ default: NodesPage })))
+ const NodeDetailPage = lazy(() => import('@/pages/admin/NodeDetailPage').then(({ NodeDetailPage }) => ({ default: NodeDetailPage })))
+@@ -159,6 +161,8 @@ export default function App() {
+               <Route path="users/:userId" element={<ErrorBoundary><AdminUserDetailPage /></ErrorBoundary>} />
+               <Route path="payments" element={<ErrorBoundary><AdminPaymentsPage /></ErrorBoundary>} />
+               <Route path="promos" element={<ErrorBoundary><AdminPromosPage /></ErrorBoundary>} />
++              <Route path="ads" element={<ErrorBoundary><AdminAdsPage /></ErrorBoundary>} />
++              <Route path="funnel" element={<ErrorBoundary><AdminFunnelPage /></ErrorBoundary>} />
+               <Route path="broadcast" element={<ErrorBoundary><BroadcastPage /></ErrorBoundary>} />
+               <Route path="panel" element={<ErrorBoundary><PanelStatsPage /></ErrorBoundary>} />
+               <Route path="panel/users" element={<ErrorBoundary><PanelUsersPage /></ErrorBoundary>} />
+diff --git a/frontend/src/api/admin/ads.ts b/frontend/src/api/admin/ads.ts
+new file mode 100644
+index 0000000..170f2df
+--- /dev/null
++++ b/frontend/src/api/admin/ads.ts
+@@ -0,0 +1,74 @@
++import { apiRequest } from '@/api/client'
++
++export interface AdminAdCampaignStats {
++  starts: number
++  trials: number
++  payers: number
++  revenue: number
++}
++
++export interface AdminAdCampaignItem {
++  ad_campaign_id: number
++  source: string
++  start_param: string
++  cost: number
++  is_active: boolean
++  created_at: string | null
++  stats: AdminAdCampaignStats
++}
++
++export interface AdminAdsListResponse {
++  items: AdminAdCampaignItem[]
++  total: number
++  page: number
++  page_size: number
++}
++
++export interface AdminAdsOverview {
++  total_cost: number
++  total_revenue: number
++  active_campaigns: number
++  total_campaigns: number
++}
++
++export interface AdCampaignCreateRequest {
++  source: string
++  start_param: string
++  cost: number
++}
++
++export interface AdCampaignUpdateRequest {
++  is_active?: boolean
++  cost?: number
++  source?: string
++}
++
++export function getAdsOverview(): Promise<AdminAdsOverview> {
++  return apiRequest<AdminAdsOverview>('/admin/ads/overview')
++}
++
++export function getAds(page = 0, page_size = 20, only_active = false): Promise<AdminAdsListResponse> {
++  return apiRequest<AdminAdsListResponse>(
++    `/admin/ads?page=${page}&page_size=${page_size}&only_active=${only_active}`,
++  )
++}
++
++export function createAd(data: AdCampaignCreateRequest): Promise<AdminAdCampaignItem> {
++  return apiRequest<AdminAdCampaignItem>('/admin/ads', {
++    method: 'POST',
++    body: JSON.stringify(data),
++  })
++}
++
++export function updateAd(id: number, data: AdCampaignUpdateRequest): Promise<AdminAdCampaignItem> {
++  return apiRequest<AdminAdCampaignItem>(`/admin/ads/${id}`, {
++    method: 'PATCH',
++    body: JSON.stringify(data),
++  })
++}
++
++export function deleteAd(id: number): Promise<{ deleted: boolean; id: number }> {
++  return apiRequest<{ deleted: boolean; id: number }>(`/admin/ads/${id}`, {
++    method: 'DELETE',
++  })
++}
+diff --git a/frontend/src/api/admin/funnel.ts b/frontend/src/api/admin/funnel.ts
+new file mode 100644
+index 0000000..371f8f3
+--- /dev/null
++++ b/frontend/src/api/admin/funnel.ts
+@@ -0,0 +1,41 @@
++import { apiRequest } from '@/api/client'
++
++export interface FunnelStage {
++  key: string
++  label: string
++  count: number
++  pct_from_top: number
++  pct_from_prev: number
++}
++
++export interface FunnelResponse {
++  stages: FunnelStage[]
++  period_from: string | null
++  period_to: string | null
++  total_revenue: number
++  total_users: number
++}
++
++export interface FunnelBySourceItem {
++  source: string
++  starts: number
++  trials: number
++  payers: number
++  revenue: number
++}
++
++export interface FunnelBySourceResponse {
++  items: FunnelBySourceItem[]
++}
++
++export function getFunnel(period_from?: string, period_to?: string): Promise<FunnelResponse> {
++  const params = new URLSearchParams()
++  if (period_from) params.set('period_from', period_from)
++  if (period_to) params.set('period_to', period_to)
++  const qs = params.toString()
++  return apiRequest<FunnelResponse>(`/admin/funnel${qs ? `?${qs}` : ''}`)
++}
++
++export function getFunnelBySource(): Promise<FunnelBySourceResponse> {
++  return apiRequest<FunnelBySourceResponse>('/admin/funnel/by-source')
++}
+diff --git a/frontend/src/components/admin/AdminSidebar.tsx b/frontend/src/components/admin/AdminSidebar.tsx
+index 8102d1a..c5d9142 100644
+--- a/frontend/src/components/admin/AdminSidebar.tsx
++++ b/frontend/src/components/admin/AdminSidebar.tsx
+@@ -14,6 +14,8 @@ import {
+   Activity,
+   Server,
+   Megaphone,
++  TrendingDown,
++  Target,
+   X,
+ } from 'lucide-react'
+ import { AdminLanguageToggle } from '@/components/admin/AdminLanguageToggle'
+@@ -23,6 +25,8 @@ const NAV_ITEMS = [
+   { to: '/admin/users', icon: Users, labelKey: 'admin_nav_users' },
+   { to: '/admin/payments', icon: CreditCard, labelKey: 'admin_nav_payments' },
+   { to: '/admin/promos', icon: Tag, labelKey: 'admin_nav_promos' },
++  { to: '/admin/ads', icon: Target, labelKey: 'admin_nav_ads' },
++  { to: '/admin/funnel', icon: TrendingDown, labelKey: 'admin_nav_funnel' },
+   { to: '/admin/broadcast', icon: Megaphone, labelKey: 'admin_nav_broadcast' },
+ ]
+ 
+diff --git a/frontend/src/i18n.ts b/frontend/src/i18n.ts
+index 188b879..eb08ec0 100644
+--- a/frontend/src/i18n.ts
++++ b/frontend/src/i18n.ts
+@@ -232,6 +232,8 @@ const ru = {
+   admin_nav_users: 'Пользователи',
+   admin_nav_payments: 'Платежи',
+   admin_nav_promos: 'Промокоды',
++  admin_nav_ads: 'Реклама',
++  admin_nav_funnel: 'Воронка',
+   admin_nav_broadcast: 'Рассылка',
+   admin_nav_branding: 'Бренд и цвета',
+   admin_nav_features: 'Разделы',
+@@ -411,6 +413,54 @@ const ru = {
+   admin_users_add_days_button: 'Добавить {{count}} дн.',
+   admin_users_add_traffic_button: 'Добавить {{count}} ГБ',
+ 
++  // Admin panel — ads
++  admin_ads_title: 'Рекламные кампании',
++  admin_ads_subtitle: 'Учёт затрат на рекламу и доходов по источникам',
++  admin_ads_create_title: 'Новая кампания',
++  admin_ads_create_short: 'Создать',
++  admin_ads_create_error: 'Ошибка при создании кампании',
++  admin_ads_created_toast: 'Кампания создана',
++  admin_ads_deleted_toast: 'Кампания удалена',
++  admin_ads_delete_error: 'Ошибка при удалении',
++  admin_ads_status_updated: 'Статус обновлён',
++  admin_ads_status_error: 'Ошибка при изменении статуса',
++  admin_ads_empty: 'Кампаний пока нет',
++  admin_ads_create_first: 'Создать первую',
++  admin_ads_source_label: 'Источник',
++  admin_ads_start_param_label: 'Параметр start',
++  admin_ads_start_param_hint: 'Будет в ссылке t.me/bot?start=<значение>. Только буквы, цифры, _ и -.',
++  admin_ads_cost_label: 'Стоимость (₽)',
++  admin_ads_starts: 'Запуски',
++  admin_ads_trials: 'Триалы',
++  admin_ads_payers: 'Оплатили',
++  admin_ads_revenue: 'Доход',
++  admin_ads_total_revenue: 'Доход всего',
++  admin_ads_total_cost: 'Расход всего',
++  admin_ads_active_campaigns: 'Активные / всего',
++  admin_ads_delete_confirm_title: 'Удалить кампанию?',
++  admin_ads_delete_confirm_text: 'Кампания {{source}} (start={{start_param}}) и её статистика будут удалены безвозвратно.',
++  admin_ads_enter_source: 'Введите источник',
++  admin_ads_invalid_start_param_form: 'Параметр: 2–64 символа, латиница/цифры/_/-',
++  admin_ads_invalid_cost_form: 'Стоимость — неотрицательное число',
++
++  // Admin panel — funnel
++  admin_funnel_title: 'Воронка продаж',
++  admin_funnel_subtitle: 'Прохождение пользователей от регистрации до повторной оплаты',
++  admin_funnel_from: 'С',
++  admin_funnel_to: 'По',
++  admin_funnel_reset: 'Сбросить',
++  admin_funnel_total_users: 'Всего пользователей',
++  admin_funnel_total_revenue: 'Доход',
++  admin_funnel_arpu: 'ARPU',
++  admin_funnel_conversion: 'Конверсия в оплату',
++  admin_funnel_chart_title: 'Этапы воронки',
++  admin_funnel_loading: 'Загрузка...',
++  admin_funnel_empty: 'Нет данных за выбранный период',
++  admin_funnel_users: 'пользователей',
++  admin_funnel_from_top: 'от старта',
++  admin_funnel_from_prev: 'от пред.',
++  admin_funnel_by_source: 'Воронка по источникам',
++
+   // Admin panel — promos
+   admin_promos_title: 'Промокоды',
+   admin_promos_subtitle: 'Управление скидочными кодами и бонусными днями',
+@@ -849,6 +899,8 @@ const en: typeof ru = {
+   admin_nav_users: 'Users',
+   admin_nav_payments: 'Payments',
+   admin_nav_promos: 'Promo Codes',
++  admin_nav_ads: 'Ads',
++  admin_nav_funnel: 'Funnel',
+   admin_nav_broadcast: 'Broadcast',
+   admin_nav_branding: 'Brand & Colors',
+   admin_nav_features: 'Features',
+@@ -1028,6 +1080,54 @@ const en: typeof ru = {
+   admin_users_add_days_button: 'Add {{count}} d.',
+   admin_users_add_traffic_button: 'Add {{count}} GB',
+ 
++  // Admin panel — ads
++  admin_ads_title: 'Ad Campaigns',
++  admin_ads_subtitle: 'Track ad spend and revenue by source',
++  admin_ads_create_title: 'New Campaign',
++  admin_ads_create_short: 'Create',
++  admin_ads_create_error: 'Failed to create campaign',
++  admin_ads_created_toast: 'Campaign created',
++  admin_ads_deleted_toast: 'Campaign deleted',
++  admin_ads_delete_error: 'Failed to delete',
++  admin_ads_status_updated: 'Status updated',
++  admin_ads_status_error: 'Failed to change status',
++  admin_ads_empty: 'No campaigns yet',
++  admin_ads_create_first: 'Create the first one',
++  admin_ads_source_label: 'Source',
++  admin_ads_start_param_label: 'Start parameter',
++  admin_ads_start_param_hint: 'Will be in the link t.me/bot?start=<value>. Letters, digits, _ and - only.',
++  admin_ads_cost_label: 'Cost (RUB)',
++  admin_ads_starts: 'Starts',
++  admin_ads_trials: 'Trials',
++  admin_ads_payers: 'Payers',
++  admin_ads_revenue: 'Revenue',
++  admin_ads_total_revenue: 'Total revenue',
++  admin_ads_total_cost: 'Total cost',
++  admin_ads_active_campaigns: 'Active / total',
++  admin_ads_delete_confirm_title: 'Delete campaign?',
++  admin_ads_delete_confirm_text: 'Campaign {{source}} (start={{start_param}}) and its stats will be deleted permanently.',
++  admin_ads_enter_source: 'Enter source',
++  admin_ads_invalid_start_param_form: 'Parameter: 2–64 chars, latin/digits/_/-',
++  admin_ads_invalid_cost_form: 'Cost must be a non-negative number',
++
++  // Admin panel — funnel
++  admin_funnel_title: 'Sales Funnel',
++  admin_funnel_subtitle: 'User journey from registration to repeat purchase',
++  admin_funnel_from: 'From',
++  admin_funnel_to: 'To',
++  admin_funnel_reset: 'Reset',
++  admin_funnel_total_users: 'Total users',
++  admin_funnel_total_revenue: 'Revenue',
++  admin_funnel_arpu: 'ARPU',
++  admin_funnel_conversion: 'Conversion to paid',
++  admin_funnel_chart_title: 'Funnel stages',
++  admin_funnel_loading: 'Loading...',
++  admin_funnel_empty: 'No data for selected period',
++  admin_funnel_users: 'users',
++  admin_funnel_from_top: 'from top',
++  admin_funnel_from_prev: 'from prev.',
++  admin_funnel_by_source: 'Funnel by source',
++
+   // Admin panel — promos
+   admin_promos_title: 'Promo Codes',
+   admin_promos_subtitle: 'Manage discount codes and bonus days',
+diff --git a/frontend/src/pages/admin/AdminAdsPage.tsx b/frontend/src/pages/admin/AdminAdsPage.tsx
+new file mode 100644
+index 0000000..61c88e8
+--- /dev/null
++++ b/frontend/src/pages/admin/AdminAdsPage.tsx
+@@ -0,0 +1,279 @@
++import { useState } from 'react'
++import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
++import { Megaphone, Plus, Trash2 } from 'lucide-react'
++import { useTranslation } from 'react-i18next'
++import { DataTable, type Column } from '@/components/admin/DataTable'
++import { useToast } from '@/hooks/useToast'
++import {
++  createAd,
++  deleteAd,
++  getAds,
++  getAdsOverview,
++  updateAd,
++  type AdminAdCampaignItem,
++  type AdCampaignCreateRequest,
++} from '@/api/admin/ads'
++
++function fmtMoney(n: number): string {
++  return n.toLocaleString('ru-RU', { maximumFractionDigits: 2 })
++}
++
++function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
++  const { t } = useTranslation()
++  const toast = useToast()
++  const [source, setSource] = useState('')
++  const [startParam, setStartParam] = useState('')
++  const [cost, setCost] = useState('0')
++  const [error, setError] = useState('')
++
++  const mutation = useMutation({
++    mutationFn: (data: AdCampaignCreateRequest) => createAd(data),
++    onSuccess: () => {
++      toast.success(t('admin_ads_created_toast'))
++      onCreated()
++      onClose()
++    },
++    onError: (e: Error) => {
++      const msg = e.message || t('admin_ads_create_error')
++      setError(msg)
++      toast.error(msg)
++    },
++  })
++
++  function handleSubmit(ev: React.FormEvent) {
++    ev.preventDefault()
++    setError('')
++    if (!source.trim()) return setError(t('admin_ads_enter_source'))
++    if (!/^[A-Za-z0-9_\-]{2,64}$/.test(startParam.trim())) return setError(t('admin_ads_invalid_start_param_form'))
++    const costNum = parseFloat(cost.replace(',', '.'))
++    if (Number.isNaN(costNum) || costNum < 0) return setError(t('admin_ads_invalid_cost_form'))
++    mutation.mutate({ source: source.trim(), start_param: startParam.trim(), cost: costNum })
++  }
++
++  return (
++    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
++      <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] w-full max-w-md p-6 shadow-xl">
++        <h2 className="text-lg font-bold mb-4">{t('admin_ads_create_title')}</h2>
++        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
++          <div>
++            <label className="text-sm font-medium">{t('admin_ads_source_label')}</label>
++            <input
++              type="text" value={source} onChange={(e) => setSource(e.target.value)}
++              placeholder="VK, TG-channel, AEZA"
++              className="mt-1 w-full h-9 px-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] text-sm"
++            />
++          </div>
++          <div>
++            <label className="text-sm font-medium">{t('admin_ads_start_param_label')}</label>
++            <input
++              type="text" value={startParam} onChange={(e) => setStartParam(e.target.value)}
++              placeholder="vk2024"
++              className="mt-1 w-full h-9 px-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] text-sm font-mono"
++            />
++            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
++              {t('admin_ads_start_param_hint')}
++            </p>
++          </div>
++          <div>
++            <label className="text-sm font-medium">{t('admin_ads_cost_label')}</label>
++            <input
++              type="text" value={cost} onChange={(e) => setCost(e.target.value)}
++              className="mt-1 w-full h-9 px-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] text-sm"
++            />
++          </div>
++          {error && <p className="text-sm text-red-500">{error}</p>}
++          <div className="flex gap-2 mt-2">
++            <button type="button" onClick={onClose}
++              className="flex-1 h-9 rounded-lg border border-[hsl(var(--border))] text-sm hover:bg-[hsl(var(--muted))]">
++              {t('admin_cancel')}
++            </button>
++            <button type="submit" disabled={mutation.isPending}
++              className="flex-1 h-9 rounded-lg bg-[hsl(var(--primary))] text-white text-sm font-medium hover:opacity-90 disabled:opacity-50">
++              {mutation.isPending ? t('admin_creating') : t('admin_create')}
++            </button>
++          </div>
++        </form>
++      </div>
++    </div>
++  )
++}
++
++function DeleteConfirm({ item, onClose, onDeleted }: {
++  item: AdminAdCampaignItem; onClose: () => void; onDeleted: () => void
++}) {
++  const { t } = useTranslation()
++  const toast = useToast()
++  const mutation = useMutation({
++    mutationFn: () => deleteAd(item.ad_campaign_id),
++    onSuccess: () => {
++      toast.success(t('admin_ads_deleted_toast'))
++      onDeleted()
++      onClose()
++    },
++    onError: () => toast.error(t('admin_ads_delete_error')),
++  })
++  return (
++    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
++      <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] w-full max-w-sm p-6 shadow-xl">
++        <h2 className="text-lg font-bold mb-2">{t('admin_ads_delete_confirm_title')}</h2>
++        <p className="text-sm text-[hsl(var(--muted-foreground))] mb-4">
++          {t('admin_ads_delete_confirm_text', { source: item.source, start_param: item.start_param })}
++        </p>
++        <div className="flex gap-2">
++          <button onClick={onClose}
++            className="flex-1 h-9 rounded-lg border border-[hsl(var(--border))] text-sm hover:bg-[hsl(var(--muted))]">
++            {t('admin_cancel')}
++          </button>
++          <button onClick={() => mutation.mutate()} disabled={mutation.isPending}
++            className="flex-1 h-9 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 disabled:opacity-50">
++            {mutation.isPending ? t('admin_deleting') : t('admin_delete')}
++          </button>
++        </div>
++      </div>
++    </div>
++  )
++}
++
++export function AdminAdsPage() {
++  const { t } = useTranslation()
++  const queryClient = useQueryClient()
++  const toast = useToast()
++  const [page, setPage] = useState(0)
++  const [pageSize, setPageSize] = useState(20)
++  const [showCreate, setShowCreate] = useState(false)
++  const [deleteTarget, setDeleteTarget] = useState<AdminAdCampaignItem | null>(null)
++
++  const { data: overview } = useQuery({
++    queryKey: ['admin', 'ads', 'overview'],
++    queryFn: getAdsOverview,
++    staleTime: 30_000,
++  })
++
++  const { data, isLoading } = useQuery({
++    queryKey: ['admin', 'ads', page, pageSize],
++    queryFn: () => getAds(page, pageSize),
++    staleTime: 30_000,
++    placeholderData: keepPreviousData,
++  })
++
++  const toggleMutation = useMutation({
++    mutationFn: ({ id, is_active }: { id: number; is_active: boolean }) => updateAd(id, { is_active }),
++    onSuccess: () => {
++      queryClient.invalidateQueries({ queryKey: ['admin', 'ads'] })
++      toast.success(t('admin_ads_status_updated'))
++    },
++    onError: () => toast.error(t('admin_ads_status_error')),
++  })
++
++  function invalidate() {
++    queryClient.invalidateQueries({ queryKey: ['admin', 'ads'] })
++  }
++
++  const roi = overview && overview.total_cost > 0
++    ? ((overview.total_revenue - overview.total_cost) / overview.total_cost) * 100
++    : null
++
++  const columns: Column<AdminAdCampaignItem>[] = [
++    { key: 'source', header: t('admin_ads_source_label'), size: 140, render: (r) => <span className="font-medium">{r.source}</span> },
++    { key: 'start_param', header: 'start=', size: 130, render: (r) => <code className="text-xs">{r.start_param}</code> },
++    { key: 'cost', header: t('admin_ads_cost_label'), size: 100, render: (r) => `${fmtMoney(r.cost)} ₽` },
++    { key: 'starts', header: t('admin_ads_starts'), size: 80, render: (r) => r.stats.starts },
++    { key: 'trials', header: t('admin_ads_trials'), size: 80, render: (r) => r.stats.trials },
++    { key: 'payers', header: t('admin_ads_payers'), size: 80, render: (r) => r.stats.payers },
++    { key: 'revenue', header: t('admin_ads_revenue'), size: 110, render: (r) => `${fmtMoney(r.stats.revenue)} ₽` },
++    {
++      key: 'roi', header: 'ROI', size: 80,
++      render: (r) => {
++        if (!r.cost) return '—'
++        const v = ((r.stats.revenue - r.cost) / r.cost) * 100
++        const cls = v >= 0 ? 'text-green-600' : 'text-red-600'
++        return <span className={cls}>{v >= 0 ? '+' : ''}{v.toFixed(0)}%</span>
++      },
++    },
++    {
++      key: 'status', header: t('admin_status'), size: 90,
++      render: (r) => (
++        <button
++          onClick={() => toggleMutation.mutate({ id: r.ad_campaign_id, is_active: !r.is_active })}
++          disabled={toggleMutation.isPending}
++          role="switch" aria-checked={r.is_active}
++          className={`inline-flex h-5 w-9 items-center rounded-full transition-colors ${r.is_active ? 'bg-[hsl(var(--primary))]' : 'bg-[hsl(var(--muted))]'}`}
++        >
++          <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${r.is_active ? 'translate-x-4' : 'translate-x-0.5'}`} />
++        </button>
++      ),
++    },
++    {
++      key: 'actions', header: '', size: 60,
++      render: (r) => (
++        <button onClick={() => setDeleteTarget(r)} className="p-1.5 rounded hover:bg-red-50 text-red-500" title={t('admin_delete')}>
++          <Trash2 size={14} />
++        </button>
++      ),
++    },
++  ]
++
++  return (
++    <div className="px-4 py-6 sm:p-8 space-y-6">
++      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
++        <div>
++          <h1 className="text-2xl font-bold text-[hsl(var(--foreground))]">{t('admin_ads_title')}</h1>
++          <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1 max-w-xl">{t('admin_ads_subtitle')}</p>
++        </div>
++        <button onClick={() => setShowCreate(true)}
++          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[hsl(var(--primary))] px-4 text-sm font-medium text-white hover:opacity-90">
++          <Plus size={16} />
++          {t('admin_ads_create_short')}
++        </button>
++      </div>
++
++      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
++        <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
++          <div className="text-xs text-[hsl(var(--muted-foreground))]">{t('admin_ads_total_revenue')}</div>
++          <div className="text-xl font-bold mt-1 text-green-600">{fmtMoney(overview?.total_revenue ?? 0)} ₽</div>
++        </div>
++        <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
++          <div className="text-xs text-[hsl(var(--muted-foreground))]">{t('admin_ads_total_cost')}</div>
++          <div className="text-xl font-bold mt-1 text-red-600">{fmtMoney(overview?.total_cost ?? 0)} ₽</div>
++        </div>
++        <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
++          <div className="text-xs text-[hsl(var(--muted-foreground))]">ROI</div>
++          <div className={`text-xl font-bold mt-1 ${roi === null ? '' : roi >= 0 ? 'text-green-600' : 'text-red-600'}`}>
++            {roi === null ? '—' : `${roi >= 0 ? '+' : ''}${roi.toFixed(0)}%`}
++          </div>
++        </div>
++        <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
++          <div className="text-xs text-[hsl(var(--muted-foreground))]">{t('admin_ads_active_campaigns')}</div>
++          <div className="text-xl font-bold mt-1">{overview?.active_campaigns ?? 0} / {overview?.total_campaigns ?? 0}</div>
++        </div>
++      </div>
++
++      {data?.total === 0 && !isLoading ? (
++        <div className="flex flex-col items-center justify-center py-16 text-[hsl(var(--muted-foreground))]">
++          <Megaphone size={40} className="mb-3 opacity-30" />
++          <p className="text-sm">{t('admin_ads_empty')}</p>
++          <button onClick={() => setShowCreate(true)}
++            className="mt-3 text-[hsl(var(--primary))] text-sm font-medium hover:underline">
++            {t('admin_ads_create_first')}
++          </button>
++        </div>
++      ) : (
++        <DataTable
++          columns={columns}
++          data={data?.items ?? []}
++          total={data?.total ?? 0}
++          page={page}
++          pageSize={pageSize}
++          onPageChange={setPage}
++          onPageSizeChange={(s) => { setPageSize(s); setPage(0) }}
++          isLoading={isLoading}
++          emptyMessage={t('admin_ads_empty')}
++          keyExtractor={(r) => r.ad_campaign_id}
++        />
++      )}
++
++      {showCreate && <CreateModal onClose={() => setShowCreate(false)} onCreated={invalidate} />}
++      {deleteTarget && <DeleteConfirm item={deleteTarget} onClose={() => setDeleteTarget(null)} onDeleted={invalidate} />}
++    </div>
++  )
++}
+diff --git a/frontend/src/pages/admin/AdminFunnelPage.tsx b/frontend/src/pages/admin/AdminFunnelPage.tsx
+new file mode 100644
+index 0000000..edef989
+--- /dev/null
++++ b/frontend/src/pages/admin/AdminFunnelPage.tsx
+@@ -0,0 +1,193 @@
++import { useState } from 'react'
++import { useQuery } from '@tanstack/react-query'
++import {
++  Bar,
++  BarChart,
++  CartesianGrid,
++  Cell,
++  ResponsiveContainer,
++  Tooltip,
++  XAxis,
++  YAxis,
++} from 'recharts'
++import { useTranslation } from 'react-i18next'
++import { TrendingDown } from 'lucide-react'
++import { getFunnel, getFunnelBySource } from '@/api/admin/funnel'
++
++const STAGE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
++
++function fmtMoney(n: number): string {
++  return n.toLocaleString('ru-RU', { maximumFractionDigits: 2 })
++}
++
++export function AdminFunnelPage() {
++  const { t } = useTranslation()
++  const [periodFrom, setPeriodFrom] = useState('')
++  const [periodTo, setPeriodTo] = useState('')
++
++  const { data: funnel, isLoading } = useQuery({
++    queryKey: ['admin', 'funnel', periodFrom, periodTo],
++    queryFn: () => getFunnel(periodFrom || undefined, periodTo || undefined),
++    staleTime: 30_000,
++  })
++
++  const { data: bySource } = useQuery({
++    queryKey: ['admin', 'funnel', 'by-source'],
++    queryFn: getFunnelBySource,
++    staleTime: 30_000,
++  })
++
++  const chartData = (funnel?.stages ?? []).map((s, i) => ({
++    name: s.label,
++    count: s.count,
++    pct: s.pct_from_top,
++    color: STAGE_COLORS[i % STAGE_COLORS.length],
++  }))
++
++  return (
++    <div className="px-4 py-6 sm:p-8 space-y-6">
++      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
++        <div>
++          <h1 className="text-2xl font-bold">{t('admin_funnel_title')}</h1>
++          <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1 max-w-xl">
++            {t('admin_funnel_subtitle')}
++          </p>
++        </div>
++        <div className="flex flex-wrap gap-2 items-end">
++          <div>
++            <label className="text-xs text-[hsl(var(--muted-foreground))]">{t('admin_funnel_from')}</label>
++            <input
++              type="date" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)}
++              className="block h-9 px-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] text-sm"
++            />
++          </div>
++          <div>
++            <label className="text-xs text-[hsl(var(--muted-foreground))]">{t('admin_funnel_to')}</label>
++            <input
++              type="date" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)}
++              className="block h-9 px-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] text-sm"
++            />
++          </div>
++          {(periodFrom || periodTo) && (
++            <button
++              type="button" onClick={() => { setPeriodFrom(''); setPeriodTo('') }}
++              className="h-9 px-3 rounded-lg border border-[hsl(var(--border))] text-sm hover:bg-[hsl(var(--muted))]"
++            >
++              {t('admin_funnel_reset')}
++            </button>
++          )}
++        </div>
++      </div>
++
++      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
++        <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
++          <div className="text-xs text-[hsl(var(--muted-foreground))]">{t('admin_funnel_total_users')}</div>
++          <div className="text-xl font-bold mt-1">{funnel?.total_users ?? 0}</div>
++        </div>
++        <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
++          <div className="text-xs text-[hsl(var(--muted-foreground))]">{t('admin_funnel_total_revenue')}</div>
++          <div className="text-xl font-bold mt-1 text-green-600">{fmtMoney(funnel?.total_revenue ?? 0)} ₽</div>
++        </div>
++        <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
++          <div className="text-xs text-[hsl(var(--muted-foreground))]">{t('admin_funnel_arpu')}</div>
++          <div className="text-xl font-bold mt-1">
++            {funnel && funnel.total_users > 0 ? `${fmtMoney(funnel.total_revenue / funnel.total_users)} ₽` : '—'}
++          </div>
++        </div>
++        <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
++          <div className="text-xs text-[hsl(var(--muted-foreground))]">{t('admin_funnel_conversion')}</div>
++          <div className="text-xl font-bold mt-1">
++            {(() => {
++              const reg = funnel?.stages.find((s) => s.key === 'registered')?.count ?? 0
++              const paid = funnel?.stages.find((s) => s.key === 'first_payment')?.count ?? 0
++              if (reg === 0) return '—'
++              return `${((paid / reg) * 100).toFixed(1)}%`
++            })()}
++          </div>
++        </div>
++      </div>
++
++      <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 sm:p-6">
++        <h2 className="text-lg font-semibold mb-4">{t('admin_funnel_chart_title')}</h2>
++        {isLoading ? (
++          <div className="text-sm text-[hsl(var(--muted-foreground))]">{t('admin_funnel_loading')}</div>
++        ) : chartData.length === 0 ? (
++          <div className="flex flex-col items-center justify-center py-10 text-[hsl(var(--muted-foreground))]">
++            <TrendingDown size={40} className="mb-3 opacity-30" />
++            <p className="text-sm">{t('admin_funnel_empty')}</p>
++          </div>
++        ) : (
++          <ResponsiveContainer width="100%" height={320}>
++            <BarChart data={chartData} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
++              <CartesianGrid strokeDasharray="3 3" />
++              <XAxis type="number" />
++              <YAxis type="category" dataKey="name" width={140} />
++              <Tooltip
++                formatter={(value: number, name: string) => {
++                  if (name === 'count') return [value, t('admin_funnel_users')]
++                  return [value, name]
++                }}
++              />
++              <Bar dataKey="count">
++                {chartData.map((d, i) => (
++                  <Cell key={i} fill={d.color} />
++                ))}
++              </Bar>
++            </BarChart>
++          </ResponsiveContainer>
++        )}
++
++        <div className="mt-4 space-y-2">
++          {funnel?.stages.map((s, i) => (
++            <div key={s.key} className="flex items-center gap-3 text-sm">
++              <div className="w-3 h-3 rounded" style={{ background: STAGE_COLORS[i % STAGE_COLORS.length] }} />
++              <span className="flex-1">{s.label}</span>
++              <span className="font-bold">{s.count}</span>
++              <span className="text-xs text-[hsl(var(--muted-foreground))] w-20 text-right">
++                {s.pct_from_top.toFixed(1)}% {t('admin_funnel_from_top')}
++              </span>
++              <span className="text-xs text-[hsl(var(--muted-foreground))] w-20 text-right">
++                {i > 0 ? `${s.pct_from_prev.toFixed(1)}% ${t('admin_funnel_from_prev')}` : ''}
++              </span>
++            </div>
++          ))}
++        </div>
++      </div>
++
++      {bySource && bySource.items.length > 0 && (
++        <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 sm:p-6">
++          <h2 className="text-lg font-semibold mb-4">{t('admin_funnel_by_source')}</h2>
++          <div className="overflow-x-auto">
++            <table className="w-full text-sm">
++              <thead>
++                <tr className="text-left text-[hsl(var(--muted-foreground))] text-xs uppercase">
++                  <th className="py-2 px-2">{t('admin_ads_source_label')}</th>
++                  <th className="py-2 px-2 text-right">{t('admin_ads_starts')}</th>
++                  <th className="py-2 px-2 text-right">{t('admin_ads_trials')}</th>
++                  <th className="py-2 px-2 text-right">{t('admin_ads_payers')}</th>
++                  <th className="py-2 px-2 text-right">{t('admin_ads_revenue')}</th>
++                  <th className="py-2 px-2 text-right">CR</th>
++                </tr>
++              </thead>
++              <tbody>
++                {bySource.items.map((s) => {
++                  const cr = s.starts > 0 ? ((s.payers / s.starts) * 100).toFixed(1) : '—'
++                  return (
++                    <tr key={s.source} className="border-t border-[hsl(var(--border))]">
++                      <td className="py-2 px-2 font-medium">{s.source}</td>
++                      <td className="py-2 px-2 text-right">{s.starts}</td>
++                      <td className="py-2 px-2 text-right">{s.trials}</td>
++                      <td className="py-2 px-2 text-right">{s.payers}</td>
++                      <td className="py-2 px-2 text-right">{fmtMoney(s.revenue)} ₽</td>
++                      <td className="py-2 px-2 text-right">{cr}{cr !== '—' && '%'}</td>
++                    </tr>
++                  )
++                })}
++              </tbody>
++            </table>
++          </div>
++        </div>
++      )}
++    </div>
++  )
++}
+diff --git a/web/routers/admin/__init__.py b/web/routers/admin/__init__.py
+index a7514c6..a95f300 100644
+--- a/web/routers/admin/__init__.py
++++ b/web/routers/admin/__init__.py
+@@ -12,6 +12,8 @@ from .broadcast import router as broadcast_router
+ from .panel_stats import router as panel_stats_router
+ from .panel_nodes import router as panel_nodes_router
+ from .panel_users import router as panel_users_router
++from .ads import router as ads_router
++from .funnel import router as funnel_router
+ 
+ admin_router = APIRouter(prefix="/admin", tags=["admin"])
+ admin_router.include_router(auth_router)
+@@ -27,3 +29,5 @@ admin_router.include_router(broadcast_router)
+ admin_router.include_router(panel_stats_router)
+ admin_router.include_router(panel_nodes_router)
+ admin_router.include_router(panel_users_router)
++admin_router.include_router(ads_router)
++admin_router.include_router(funnel_router)
+diff --git a/web/routers/admin/ads.py b/web/routers/admin/ads.py
+new file mode 100644
+index 0000000..409695c
+--- /dev/null
++++ b/web/routers/admin/ads.py
+@@ -0,0 +1,150 @@
++from fastapi import APIRouter, Depends, HTTPException, Query
++from sqlalchemy.ext.asyncio import AsyncSession
++
++from db.models import Account
++from web.dependencies import get_db, get_current_admin
++from web.schemas.admin.ads import (
++    AdminAdCampaignItem,
++    AdminAdCampaignStats,
++    AdminAdsListResponse,
++    AdminAdsOverview,
++    AdCampaignCreateRequest,
++    AdCampaignUpdateRequest,
++)
++from core.dal import ad_dal
++from web.middleware.rate_limit import admin_action_limit
++
++router = APIRouter()
++
++
++def _to_item(campaign, stats: dict) -> AdminAdCampaignItem:
++    return AdminAdCampaignItem(
++        ad_campaign_id=campaign.ad_campaign_id,
++        source=campaign.source,
++        start_param=campaign.start_param,
++        cost=float(campaign.cost or 0),
++        is_active=bool(campaign.is_active),
++        created_at=campaign.created_at,
++        stats=AdminAdCampaignStats(
++            starts=int(stats.get("starts", 0)),
++            trials=int(stats.get("trials", 0)),
++            payers=int(stats.get("payers", 0)),
++            revenue=float(stats.get("revenue", 0.0)),
++        ),
++    )
++
++
++@router.get("/ads/overview", response_model=AdminAdsOverview)
++async def ads_overview(
++    db: AsyncSession = Depends(get_db),
++    _admin: Account = Depends(get_current_admin),
++):
++    totals = await ad_dal.get_totals(db)
++    total_count = await ad_dal.count_campaigns(db)
++    active_count = await ad_dal.count_campaigns(db, only_active=True)
++    return AdminAdsOverview(
++        total_cost=float(totals.get("cost", 0.0)),
++        total_revenue=float(totals.get("revenue", 0.0)),
++        active_campaigns=active_count,
++        total_campaigns=total_count,
++    )
++
++
++@router.get("/ads", response_model=AdminAdsListResponse)
++async def list_ads(
++    page: int = Query(0, ge=0),
++    page_size: int = Query(20, ge=1, le=100),
++    only_active: bool = Query(False),
++    db: AsyncSession = Depends(get_db),
++    _admin: Account = Depends(get_current_admin),
++):
++    campaigns = await ad_dal.list_campaigns_paged(
++        db, page=page, page_size=page_size, only_active=only_active
++    )
++    total = await ad_dal.count_campaigns(db, only_active=only_active)
++    items = []
++    for c in campaigns:
++        stats = await ad_dal.get_campaign_stats(db, c.ad_campaign_id)
++        items.append(_to_item(c, stats))
++    return AdminAdsListResponse(items=items, total=total, page=page, page_size=page_size)
++
++
++@router.get("/ads/{campaign_id}", response_model=AdminAdCampaignItem)
++async def get_ad(
++    campaign_id: int,
++    db: AsyncSession = Depends(get_db),
++    _admin: Account = Depends(get_current_admin),
++):
++    campaign = await ad_dal.get_campaign_by_id(db, campaign_id)
++    if not campaign:
++        raise HTTPException(status_code=404, detail="Campaign not found")
++    stats = await ad_dal.get_campaign_stats(db, campaign_id)
++    return _to_item(campaign, stats)
++
++
++@router.post(
++    "/ads", response_model=AdminAdCampaignItem,
++    dependencies=[Depends(admin_action_limit)],
++)
++async def create_ad(
++    body: AdCampaignCreateRequest,
++    db: AsyncSession = Depends(get_db),
++    _admin: Account = Depends(get_current_admin),
++):
++    try:
++        campaign = await ad_dal.create_campaign(
++            db,
++            source=body.source.strip(),
++            start_param=body.start_param.strip(),
++            cost=float(body.cost),
++        )
++        await db.commit()
++    except ValueError as ve:
++        await db.rollback()
++        if str(ve) == "ad_campaign_start_param_exists":
++            raise HTTPException(status_code=409, detail="start_param already exists")
++        raise HTTPException(status_code=422, detail=str(ve))
++    return _to_item(campaign, {"starts": 0, "trials": 0, "payers": 0, "revenue": 0.0})
++
++
++@router.patch(
++    "/ads/{campaign_id}", response_model=AdminAdCampaignItem,
++    dependencies=[Depends(admin_action_limit)],
++)
++async def update_ad(
++    campaign_id: int,
++    body: AdCampaignUpdateRequest,
++    db: AsyncSession = Depends(get_db),
++    _admin: Account = Depends(get_current_admin),
++):
++    campaign = await ad_dal.get_campaign_by_id(db, campaign_id)
++    if not campaign:
++        raise HTTPException(status_code=404, detail="Campaign not found")
++
++    if body.is_active is not None:
++        campaign.is_active = body.is_active
++    if body.cost is not None:
++        campaign.cost = float(body.cost)
++    if body.source is not None:
++        campaign.source = body.source.strip()
++
++    await db.commit()
++    await db.refresh(campaign)
++    stats = await ad_dal.get_campaign_stats(db, campaign_id)
++    return _to_item(campaign, stats)
++
++
++@router.delete(
++    "/ads/{campaign_id}",
++    dependencies=[Depends(admin_action_limit)],
++)
++async def delete_ad(
++    campaign_id: int,
++    db: AsyncSession = Depends(get_db),
++    _admin: Account = Depends(get_current_admin),
++):
++    existed = await ad_dal.delete_campaign(db, campaign_id)
++    if not existed:
++        raise HTTPException(status_code=404, detail="Campaign not found")
++    await db.commit()
++    return {"deleted": True, "id": campaign_id}
+diff --git a/web/routers/admin/funnel.py b/web/routers/admin/funnel.py
+new file mode 100644
+index 0000000..d0c92ea
+--- /dev/null
++++ b/web/routers/admin/funnel.py
+@@ -0,0 +1,197 @@
++from datetime import date, datetime, timedelta, timezone
++from typing import Optional
++
++from fastapi import APIRouter, Depends, Query
++from sqlalchemy import and_, func, select
++from sqlalchemy.ext.asyncio import AsyncSession
++
++from db.models import (
++    Account,
++    AdAttribution,
++    AdCampaign,
++    Payment,
++    Subscription,
++    TrialActivation,
++    User,
++)
++from web.dependencies import get_current_admin, get_db
++from web.schemas.admin.funnel import (
++    FunnelBySourceItem,
++    FunnelBySourceResponse,
++    FunnelResponse,
++    FunnelStage,
++)
++
++router = APIRouter()
++
++
++STAGE_LABELS_RU = {
++    "registered": "Зарегистрировались",
++    "trial": "Активировали триал",
++    "first_payment": "Первая оплата",
++    "renewed": "Продлили подписку",
++    "active": "Активная подписка",
++}
++
++
++def _pct(part: int, whole: int) -> float:
++    if whole <= 0:
++        return 0.0
++    return round(part * 100.0 / whole, 2)
++
++
++def _date_to_dt(d: Optional[date], end_of_day: bool = False) -> Optional[datetime]:
++    if d is None:
++        return None
++    if end_of_day:
++        return datetime.combine(d, datetime.max.time()).replace(tzinfo=timezone.utc)
++    return datetime.combine(d, datetime.min.time()).replace(tzinfo=timezone.utc)
++
++
++@router.get("/funnel", response_model=FunnelResponse)
++async def get_funnel(
++    period_from: Optional[date] = Query(None),
++    period_to: Optional[date] = Query(None),
++    db: AsyncSession = Depends(get_db),
++    _admin: Account = Depends(get_current_admin),
++):
++    dt_from = _date_to_dt(period_from)
++    dt_to = _date_to_dt(period_to, end_of_day=True)
++
++    user_filters = []
++    if dt_from is not None:
++        user_filters.append(User.registration_date >= dt_from)
++    if dt_to is not None:
++        user_filters.append(User.registration_date <= dt_to)
++
++    payment_filters = [Payment.status == "succeeded"]
++    if dt_from is not None:
++        payment_filters.append(Payment.created_at >= dt_from)
++    if dt_to is not None:
++        payment_filters.append(Payment.created_at <= dt_to)
++
++    trial_filters = []
++    if dt_from is not None:
++        trial_filters.append(TrialActivation.activated_at >= dt_from)
++    if dt_to is not None:
++        trial_filters.append(TrialActivation.activated_at <= dt_to)
++
++    # 1. Registered users in period
++    registered_stmt = select(func.count(User.user_id))
++    if user_filters:
++        registered_stmt = registered_stmt.where(and_(*user_filters))
++    registered = int((await db.execute(registered_stmt)).scalar() or 0)
++
++    # 2. Trial activations (distinct users)
++    trial_stmt = select(func.count(func.distinct(TrialActivation.user_id)))
++    if trial_filters:
++        trial_stmt = trial_stmt.where(and_(*trial_filters))
++    trial = int((await db.execute(trial_stmt)).scalar() or 0)
++
++    # 3. First payment (distinct users who paid at least once)
++    paid_stmt = select(func.count(func.distinct(Payment.user_id))).where(and_(*payment_filters))
++    paid = int((await db.execute(paid_stmt)).scalar() or 0)
++
++    # 4. Renewed (users with >= 2 succeeded payments in period)
++    renewed_subq = (
++        select(Payment.user_id, func.count(Payment.payment_id).label("cnt"))
++        .where(and_(*payment_filters))
++        .group_by(Payment.user_id)
++        .having(func.count(Payment.payment_id) >= 2)
++        .subquery()
++    )
++    renewed_stmt = select(func.count()).select_from(renewed_subq)
++    renewed = int((await db.execute(renewed_stmt)).scalar() or 0)
++
++    # 5. Currently active subscriptions (period filter on Subscription.end_date if given)
++    active_stmt = select(func.count(func.distinct(Subscription.user_id))).where(
++        and_(Subscription.is_active.is_(True), Subscription.end_date > datetime.now(timezone.utc))
++    )
++    active = int((await db.execute(active_stmt)).scalar() or 0)
++
++    # Total revenue in period
++    revenue_stmt = select(func.coalesce(func.sum(Payment.amount), 0.0)).where(and_(*payment_filters))
++    revenue = float((await db.execute(revenue_stmt)).scalar() or 0.0)
++
++    counts = [
++        ("registered", registered),
++        ("trial", trial),
++        ("first_payment", paid),
++        ("renewed", renewed),
++        ("active", active),
++    ]
++    top = counts[0][1] if counts else 0
++    stages = []
++    for i, (key, count) in enumerate(counts):
++        prev = counts[i - 1][1] if i > 0 else top
++        stages.append(
++            FunnelStage(
++                key=key,
++                label=STAGE_LABELS_RU[key],
++                count=count,
++                pct_from_top=_pct(count, top),
++                pct_from_prev=_pct(count, prev) if prev > 0 else 0.0,
++            )
++        )
++
++    return FunnelResponse(
++        stages=stages,
++        period_from=period_from,
++        period_to=period_to,
++        total_revenue=revenue,
++        total_users=registered,
++    )
++
++
++@router.get("/funnel/by-source", response_model=FunnelBySourceResponse)
++async def get_funnel_by_source(
++    db: AsyncSession = Depends(get_db),
++    _admin: Account = Depends(get_current_admin),
++):
++    """Per-source aggregate: starts (attributed), trials, payers, revenue."""
++    # Aggregate across campaigns grouped by source
++    starts_stmt = (
++        select(AdCampaign.source, func.count(AdAttribution.user_id).label("starts"))
++        .select_from(AdCampaign)
++        .join(AdAttribution, AdAttribution.ad_campaign_id == AdCampaign.ad_campaign_id, isouter=True)
++        .group_by(AdCampaign.source)
++    )
++    starts_rows = (await db.execute(starts_stmt)).all()
++    by_source = {row[0]: {"starts": int(row[1] or 0), "trials": 0, "payers": 0, "revenue": 0.0} for row in starts_rows}
++
++    trials_stmt = (
++        select(AdCampaign.source, func.count(AdAttribution.user_id).label("trials"))
++        .select_from(AdCampaign)
++        .join(AdAttribution, AdAttribution.ad_campaign_id == AdCampaign.ad_campaign_id)
++        .where(AdAttribution.trial_activated_at.is_not(None))
++        .group_by(AdCampaign.source)
++    )
++    for row in (await db.execute(trials_stmt)).all():
++        src = row[0]
++        if src in by_source:
++            by_source[src]["trials"] = int(row[1] or 0)
++
++    # Payers + revenue: join payments via attributions
++    payers_stmt = (
++        select(
++            AdCampaign.source,
++            func.count(func.distinct(Payment.user_id)).label("payers"),
++            func.coalesce(func.sum(Payment.amount), 0.0).label("revenue"),
++        )
++        .select_from(AdCampaign)
++        .join(AdAttribution, AdAttribution.ad_campaign_id == AdCampaign.ad_campaign_id)
++        .join(Payment, Payment.user_id == AdAttribution.user_id)
++        .where(and_(Payment.status == "succeeded", Payment.created_at >= AdAttribution.first_start_at))
++        .group_by(AdCampaign.source)
++    )
++    for row in (await db.execute(payers_stmt)).all():
++        src = row[0]
++        if src in by_source:
++            by_source[src]["payers"] = int(row[1] or 0)
++            by_source[src]["revenue"] = float(row[2] or 0.0)
++
++    items = [
++        FunnelBySourceItem(source=src, **data)
++        for src, data in sorted(by_source.items(), key=lambda kv: -kv[1]["revenue"])
++    ]
++    return FunnelBySourceResponse(items=items)
+diff --git a/web/schemas/admin/ads.py b/web/schemas/admin/ads.py
+new file mode 100644
+index 0000000..3a50db9
+--- /dev/null
++++ b/web/schemas/admin/ads.py
+@@ -0,0 +1,55 @@
++from typing import List, Optional
++
++from pydantic import BaseModel, Field, field_validator
++from web.schemas.types import UTCDatetime
++
++
++class AdminAdCampaignStats(BaseModel):
++    starts: int
++    trials: int
++    payers: int
++    revenue: float
++
++
++class AdminAdCampaignItem(BaseModel):
++    ad_campaign_id: int
++    source: str
++    start_param: str
++    cost: float
++    is_active: bool
++    created_at: Optional[UTCDatetime] = None
++    stats: AdminAdCampaignStats
++
++
++class AdminAdsListResponse(BaseModel):
++    items: List[AdminAdCampaignItem]
++    total: int
++    page: int
++    page_size: int
++
++
++class AdminAdsOverview(BaseModel):
++    total_cost: float
++    total_revenue: float
++    active_campaigns: int
++    total_campaigns: int
++
++
++class AdCampaignCreateRequest(BaseModel):
++    source: str = Field(min_length=1, max_length=64)
++    start_param: str = Field(min_length=2, max_length=64)
++    cost: float = Field(ge=0, le=1e8)
++
++    @field_validator("start_param")
++    @classmethod
++    def validate_start_param(cls, v: str) -> str:
++        import re
++        if not re.match(r"^[A-Za-z0-9_\-]{2,64}$", v):
++            raise ValueError("start_param must be 2-64 chars: letters, digits, _ or -")
++        return v
++
++
++class AdCampaignUpdateRequest(BaseModel):
++    is_active: Optional[bool] = None
++    cost: Optional[float] = Field(default=None, ge=0, le=1e8)
++    source: Optional[str] = Field(default=None, min_length=1, max_length=64)
+diff --git a/web/schemas/admin/funnel.py b/web/schemas/admin/funnel.py
+new file mode 100644
+index 0000000..eb18170
+--- /dev/null
++++ b/web/schemas/admin/funnel.py
+@@ -0,0 +1,32 @@
++from datetime import date
++from typing import List, Optional
++
++from pydantic import BaseModel
++
++
++class FunnelStage(BaseModel):
++    key: str
++    label: str
++    count: int
++    pct_from_top: float
++    pct_from_prev: float
++
++
++class FunnelResponse(BaseModel):
++    stages: List[FunnelStage]
++    period_from: Optional[date] = None
++    period_to: Optional[date] = None
++    total_revenue: float
++    total_users: int
++
++
++class FunnelBySourceItem(BaseModel):
++    source: str
++    starts: int
++    trials: int
++    payers: int
++    revenue: float
++
++
++class FunnelBySourceResponse(BaseModel):
++    items: List[FunnelBySourceItem]

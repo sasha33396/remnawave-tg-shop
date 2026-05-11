@@ -1,0 +1,925 @@
+diff --git a/frontend/src/App.tsx b/frontend/src/App.tsx
+index d2417a8..752e651 100644
+--- a/frontend/src/App.tsx
++++ b/frontend/src/App.tsx
+@@ -33,6 +33,9 @@ const AdminUsersPage = lazy(() => import('@/pages/admin/AdminUsersPage').then(({
+ const AdminUserDetailPage = lazy(() => import('@/pages/admin/AdminUserDetailPage').then(({ AdminUserDetailPage }) => ({ default: AdminUserDetailPage })))
+ const AdminPaymentsPage = lazy(() => import('@/pages/admin/AdminPaymentsPage').then(({ AdminPaymentsPage }) => ({ default: AdminPaymentsPage })))
+ const AdminPromosPage = lazy(() => import('@/pages/admin/AdminPromosPage').then(({ AdminPromosPage }) => ({ default: AdminPromosPage })))
++const AdminAdsPage = lazy(() => import('@/pages/admin/AdminAdsPage').then(({ AdminAdsPage }) => ({ default: AdminAdsPage })))
++const AdminFunnelPage = lazy(() => import('@/pages/admin/AdminFunnelPage').then(({ AdminFunnelPage }) => ({ default: AdminFunnelPage })))
++const AdminInsightsPage = lazy(() => import('@/pages/admin/AdminInsightsPage').then(({ AdminInsightsPage }) => ({ default: AdminInsightsPage })))
+ const PanelStatsPage = lazy(() => import('@/pages/admin/PanelStatsPage').then(({ PanelStatsPage }) => ({ default: PanelStatsPage })))
+ const NodesPage = lazy(() => import('@/pages/admin/NodesPage').then(({ NodesPage }) => ({ default: NodesPage })))
+ const NodeDetailPage = lazy(() => import('@/pages/admin/NodeDetailPage').then(({ NodeDetailPage }) => ({ default: NodeDetailPage })))
+@@ -159,6 +162,9 @@ export default function App() {
+               <Route path="users/:userId" element={<ErrorBoundary><AdminUserDetailPage /></ErrorBoundary>} />
+               <Route path="payments" element={<ErrorBoundary><AdminPaymentsPage /></ErrorBoundary>} />
+               <Route path="promos" element={<ErrorBoundary><AdminPromosPage /></ErrorBoundary>} />
++              <Route path="ads" element={<ErrorBoundary><AdminAdsPage /></ErrorBoundary>} />
++              <Route path="funnel" element={<ErrorBoundary><AdminFunnelPage /></ErrorBoundary>} />
++              <Route path="insights" element={<ErrorBoundary><AdminInsightsPage /></ErrorBoundary>} />
+               <Route path="broadcast" element={<ErrorBoundary><BroadcastPage /></ErrorBoundary>} />
+               <Route path="panel" element={<ErrorBoundary><PanelStatsPage /></ErrorBoundary>} />
+               <Route path="panel/users" element={<ErrorBoundary><PanelUsersPage /></ErrorBoundary>} />
+diff --git a/frontend/src/api/admin/insights.ts b/frontend/src/api/admin/insights.ts
+new file mode 100644
+index 0000000..b484d6f
+--- /dev/null
++++ b/frontend/src/api/admin/insights.ts
+@@ -0,0 +1,41 @@
++import { apiRequest } from '@/api/client'
++
++export interface InsightsOverview {
++  total_users: number
++  users_with_subscription: number
++  active_users: number
++  paid_users: number
++  no_purchase_users: number
++  total_revenue: number
++  total_payments: number
++  avg_check: number
++  conversion_to_paid_pct: number
++  trial_users: number
++  paying_share_pct: number
++}
++
++export interface TimeseriesPoint {
++  date: string
++  new_users: number
++  new_subscriptions: number
++  revenue: number
++  payments_count: number
++}
++
++export interface InsightsTimeseriesResponse {
++  period_from: string
++  period_to: string
++  points: TimeseriesPoint[]
++}
++
++export function getInsightsOverview(): Promise<InsightsOverview> {
++  return apiRequest<InsightsOverview>('/admin/insights/overview')
++}
++
++export function getInsightsTimeseries(days = 90, period_from?: string, period_to?: string): Promise<InsightsTimeseriesResponse> {
++  const params = new URLSearchParams()
++  if (period_from) params.set('period_from', period_from)
++  if (period_to) params.set('period_to', period_to)
++  if (!period_from && !period_to) params.set('days', String(days))
++  return apiRequest<InsightsTimeseriesResponse>(`/admin/insights/timeseries?${params.toString()}`)
++}
+diff --git a/frontend/src/components/admin/AdminSidebar.tsx b/frontend/src/components/admin/AdminSidebar.tsx
+index 8102d1a..287c4ef 100644
+--- a/frontend/src/components/admin/AdminSidebar.tsx
++++ b/frontend/src/components/admin/AdminSidebar.tsx
+@@ -14,6 +14,9 @@ import {
+   Activity,
+   Server,
+   Megaphone,
++  TrendingDown,
++  Target,
++  BarChart3,
+   X,
+ } from 'lucide-react'
+ import { AdminLanguageToggle } from '@/components/admin/AdminLanguageToggle'
+@@ -23,6 +26,9 @@ const NAV_ITEMS = [
+   { to: '/admin/users', icon: Users, labelKey: 'admin_nav_users' },
+   { to: '/admin/payments', icon: CreditCard, labelKey: 'admin_nav_payments' },
+   { to: '/admin/promos', icon: Tag, labelKey: 'admin_nav_promos' },
++  { to: '/admin/ads', icon: Target, labelKey: 'admin_nav_ads' },
++  { to: '/admin/funnel', icon: TrendingDown, labelKey: 'admin_nav_funnel' },
++  { to: '/admin/insights', icon: BarChart3, labelKey: 'admin_nav_insights' },
+   { to: '/admin/broadcast', icon: Megaphone, labelKey: 'admin_nav_broadcast' },
+ ]
+ 
+diff --git a/frontend/src/i18n.ts b/frontend/src/i18n.ts
+index 188b879..fc9ccf3 100644
+--- a/frontend/src/i18n.ts
++++ b/frontend/src/i18n.ts
+@@ -232,6 +232,9 @@ const ru = {
+   admin_nav_users: 'Пользователи',
+   admin_nav_payments: 'Платежи',
+   admin_nav_promos: 'Промокоды',
++  admin_nav_ads: 'Реклама',
++  admin_nav_funnel: 'Воронка',
++  admin_nav_insights: 'Аналитика',
+   admin_nav_broadcast: 'Рассылка',
+   admin_nav_branding: 'Бренд и цвета',
+   admin_nav_features: 'Разделы',
+@@ -411,6 +414,80 @@ const ru = {
+   admin_users_add_days_button: 'Добавить {{count}} дн.',
+   admin_users_add_traffic_button: 'Добавить {{count}} ГБ',
+ 
++  // Admin panel — ads
++  admin_ads_title: 'Рекламные кампании',
++  admin_ads_subtitle: 'Учёт затрат на рекламу и доходов по источникам',
++  admin_ads_create_title: 'Новая кампания',
++  admin_ads_create_short: 'Создать',
++  admin_ads_create_error: 'Ошибка при создании кампании',
++  admin_ads_created_toast: 'Кампания создана',
++  admin_ads_deleted_toast: 'Кампания удалена',
++  admin_ads_delete_error: 'Ошибка при удалении',
++  admin_ads_status_updated: 'Статус обновлён',
++  admin_ads_status_error: 'Ошибка при изменении статуса',
++  admin_ads_empty: 'Кампаний пока нет',
++  admin_ads_create_first: 'Создать первую',
++  admin_ads_source_label: 'Источник',
++  admin_ads_start_param_label: 'Параметр start',
++  admin_ads_start_param_hint: 'Будет в ссылке t.me/bot?start=<значение>. Только буквы, цифры, _ и -.',
++  admin_ads_cost_label: 'Стоимость (₽)',
++  admin_ads_starts: 'Запуски',
++  admin_ads_trials: 'Триалы',
++  admin_ads_payers: 'Оплатили',
++  admin_ads_revenue: 'Доход',
++  admin_ads_total_revenue: 'Доход всего',
++  admin_ads_total_cost: 'Расход всего',
++  admin_ads_active_campaigns: 'Активные / всего',
++  admin_ads_delete_confirm_title: 'Удалить кампанию?',
++  admin_ads_delete_confirm_text: 'Кампания {{source}} (start={{start_param}}) и её статистика будут удалены безвозвратно.',
++  admin_ads_enter_source: 'Введите источник',
++  admin_ads_invalid_start_param_form: 'Параметр: 2–64 символа, латиница/цифры/_/-',
++  admin_ads_invalid_cost_form: 'Стоимость — неотрицательное число',
++
++  // Admin panel — insights
++  admin_insights_title: 'Аналитика',
++  admin_insights_subtitle: 'Ключевые метрики по пользователям, подпискам и доходам',
++  admin_insights_overview_title: 'Общая статистика',
++  admin_insights_period_7d: '7 дней',
++  admin_insights_period_30d: '30 дней',
++  admin_insights_period_90d: '90 дней',
++  admin_insights_period_year: 'Год',
++  admin_insights_total_users: 'Всего зашло',
++  admin_insights_subscribed: 'Взяли подписку',
++  admin_insights_paid_users: 'Купили хотя бы раз',
++  admin_insights_active_users: 'Активных юзеров',
++  admin_insights_trial_users: 'Триал хотя бы раз',
++  admin_insights_no_purchase: 'Без покупки',
++  admin_insights_conversion: 'Конверсия в оплату',
++  admin_insights_paying_share: 'Доля платящих',
++  admin_insights_revenue: 'Выручка',
++  admin_insights_payments_count: 'Кол-во оплат',
++  admin_insights_avg_check: 'Средний чек',
++  admin_insights_users_chart: 'Новые пользователи и подписки по дням',
++  admin_insights_revenue_chart: 'Выручка и кол-во оплат по дням',
++  admin_insights_chart_users: 'Зашли',
++  admin_insights_chart_subs: 'Подписок',
++  admin_insights_chart_revenue: 'Выручка',
++  admin_insights_chart_payments: 'Оплат',
++
++  // Admin panel — funnel
++  admin_funnel_title: 'Воронка продаж',
++  admin_funnel_subtitle: 'Прохождение пользователей от регистрации до повторной оплаты',
++  admin_funnel_from: 'С',
++  admin_funnel_to: 'По',
++  admin_funnel_reset: 'Сбросить',
++  admin_funnel_total_users: 'Всего пользователей',
++  admin_funnel_total_revenue: 'Доход',
++  admin_funnel_arpu: 'ARPU',
++  admin_funnel_conversion: 'Конверсия в оплату',
++  admin_funnel_chart_title: 'Этапы воронки',
++  admin_funnel_loading: 'Загрузка...',
++  admin_funnel_empty: 'Нет данных за выбранный период',
++  admin_funnel_users: 'пользователей',
++  admin_funnel_from_top: 'от старта',
++  admin_funnel_from_prev: 'от пред.',
++  admin_funnel_by_source: 'Воронка по источникам',
++
+   // Admin panel — promos
+   admin_promos_title: 'Промокоды',
+   admin_promos_subtitle: 'Управление скидочными кодами и бонусными днями',
+@@ -849,6 +926,9 @@ const en: typeof ru = {
+   admin_nav_users: 'Users',
+   admin_nav_payments: 'Payments',
+   admin_nav_promos: 'Promo Codes',
++  admin_nav_ads: 'Ads',
++  admin_nav_funnel: 'Funnel',
++  admin_nav_insights: 'Analytics',
+   admin_nav_broadcast: 'Broadcast',
+   admin_nav_branding: 'Brand & Colors',
+   admin_nav_features: 'Features',
+@@ -1028,6 +1108,80 @@ const en: typeof ru = {
+   admin_users_add_days_button: 'Add {{count}} d.',
+   admin_users_add_traffic_button: 'Add {{count}} GB',
+ 
++  // Admin panel — ads
++  admin_ads_title: 'Ad Campaigns',
++  admin_ads_subtitle: 'Track ad spend and revenue by source',
++  admin_ads_create_title: 'New Campaign',
++  admin_ads_create_short: 'Create',
++  admin_ads_create_error: 'Failed to create campaign',
++  admin_ads_created_toast: 'Campaign created',
++  admin_ads_deleted_toast: 'Campaign deleted',
++  admin_ads_delete_error: 'Failed to delete',
++  admin_ads_status_updated: 'Status updated',
++  admin_ads_status_error: 'Failed to change status',
++  admin_ads_empty: 'No campaigns yet',
++  admin_ads_create_first: 'Create the first one',
++  admin_ads_source_label: 'Source',
++  admin_ads_start_param_label: 'Start parameter',
++  admin_ads_start_param_hint: 'Will be in the link t.me/bot?start=<value>. Letters, digits, _ and - only.',
++  admin_ads_cost_label: 'Cost (RUB)',
++  admin_ads_starts: 'Starts',
++  admin_ads_trials: 'Trials',
++  admin_ads_payers: 'Payers',
++  admin_ads_revenue: 'Revenue',
++  admin_ads_total_revenue: 'Total revenue',
++  admin_ads_total_cost: 'Total cost',
++  admin_ads_active_campaigns: 'Active / total',
++  admin_ads_delete_confirm_title: 'Delete campaign?',
++  admin_ads_delete_confirm_text: 'Campaign {{source}} (start={{start_param}}) and its stats will be deleted permanently.',
++  admin_ads_enter_source: 'Enter source',
++  admin_ads_invalid_start_param_form: 'Parameter: 2–64 chars, latin/digits/_/-',
++  admin_ads_invalid_cost_form: 'Cost must be a non-negative number',
++
++  // Admin panel — insights
++  admin_insights_title: 'Analytics',
++  admin_insights_subtitle: 'Key metrics on users, subscriptions and revenue',
++  admin_insights_overview_title: 'Overview',
++  admin_insights_period_7d: '7 days',
++  admin_insights_period_30d: '30 days',
++  admin_insights_period_90d: '90 days',
++  admin_insights_period_year: 'Year',
++  admin_insights_total_users: 'Total entered',
++  admin_insights_subscribed: 'Got a subscription',
++  admin_insights_paid_users: 'Paid at least once',
++  admin_insights_active_users: 'Active users',
++  admin_insights_trial_users: 'Trial users',
++  admin_insights_no_purchase: 'Without purchase',
++  admin_insights_conversion: 'Conversion to paid',
++  admin_insights_paying_share: 'Paying share',
++  admin_insights_revenue: 'Revenue',
++  admin_insights_payments_count: 'Payments count',
++  admin_insights_avg_check: 'Average check',
++  admin_insights_users_chart: 'New users and subscriptions by day',
++  admin_insights_revenue_chart: 'Revenue and payment count by day',
++  admin_insights_chart_users: 'Users',
++  admin_insights_chart_subs: 'Subscriptions',
++  admin_insights_chart_revenue: 'Revenue',
++  admin_insights_chart_payments: 'Payments',
++
++  // Admin panel — funnel
++  admin_funnel_title: 'Sales Funnel',
++  admin_funnel_subtitle: 'User journey from registration to repeat purchase',
++  admin_funnel_from: 'From',
++  admin_funnel_to: 'To',
++  admin_funnel_reset: 'Reset',
++  admin_funnel_total_users: 'Total users',
++  admin_funnel_total_revenue: 'Revenue',
++  admin_funnel_arpu: 'ARPU',
++  admin_funnel_conversion: 'Conversion to paid',
++  admin_funnel_chart_title: 'Funnel stages',
++  admin_funnel_loading: 'Loading...',
++  admin_funnel_empty: 'No data for selected period',
++  admin_funnel_users: 'users',
++  admin_funnel_from_top: 'from top',
++  admin_funnel_from_prev: 'from prev.',
++  admin_funnel_by_source: 'Funnel by source',
++
+   // Admin panel — promos
+   admin_promos_title: 'Promo Codes',
+   admin_promos_subtitle: 'Manage discount codes and bonus days',
+diff --git a/frontend/src/pages/admin/AdminInsightsPage.tsx b/frontend/src/pages/admin/AdminInsightsPage.tsx
+new file mode 100644
+index 0000000..8e3254c
+--- /dev/null
++++ b/frontend/src/pages/admin/AdminInsightsPage.tsx
+@@ -0,0 +1,170 @@
++import { useState } from 'react'
++import { useQuery } from '@tanstack/react-query'
++import {
++  Area,
++  AreaChart,
++  CartesianGrid,
++  Legend,
++  Line,
++  LineChart,
++  ResponsiveContainer,
++  Tooltip,
++  XAxis,
++  YAxis,
++} from 'recharts'
++import { useTranslation } from 'react-i18next'
++import { BarChart3 } from 'lucide-react'
++import { getInsightsOverview, getInsightsTimeseries } from '@/api/admin/insights'
++
++const PERIODS: { value: number; key: string }[] = [
++  { value: 7, key: 'admin_insights_period_7d' },
++  { value: 30, key: 'admin_insights_period_30d' },
++  { value: 90, key: 'admin_insights_period_90d' },
++  { value: 365, key: 'admin_insights_period_year' },
++]
++
++function fmt(n: number, digits = 0): string {
++  return n.toLocaleString('ru-RU', { maximumFractionDigits: digits })
++}
++
++function StatCard({ label, value, accent }: { label: string; value: string; accent?: 'green' | 'red' | 'blue' }) {
++  const cls = accent === 'green' ? 'text-green-600' : accent === 'red' ? 'text-red-600' : accent === 'blue' ? 'text-blue-600' : ''
++  return (
++    <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
++      <div className="text-xs text-[hsl(var(--muted-foreground))]">{label}</div>
++      <div className={`text-xl font-bold mt-1 ${cls}`}>{value}</div>
++    </div>
++  )
++}
++
++export function AdminInsightsPage() {
++  const { t } = useTranslation()
++  const [days, setDays] = useState(90)
++
++  const { data: overview } = useQuery({
++    queryKey: ['admin', 'insights', 'overview'],
++    queryFn: getInsightsOverview,
++    staleTime: 30_000,
++  })
++
++  const { data: series, isLoading: seriesLoading } = useQuery({
++    queryKey: ['admin', 'insights', 'timeseries', days],
++    queryFn: () => getInsightsTimeseries(days),
++    staleTime: 30_000,
++  })
++
++  const chartData = (series?.points ?? []).map((p) => ({
++    date: p.date,
++    new_users: p.new_users,
++    new_subs: p.new_subscriptions,
++    revenue: p.revenue,
++    payments: p.payments_count,
++  }))
++
++  return (
++    <div className="px-4 py-6 sm:p-8 space-y-6">
++      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
++        <div>
++          <h1 className="text-2xl font-bold">{t('admin_insights_title')}</h1>
++          <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1 max-w-xl">
++            {t('admin_insights_subtitle')}
++          </p>
++        </div>
++        <div className="flex gap-1 p-1 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))]">
++          {PERIODS.map((p) => (
++            <button
++              key={p.value} onClick={() => setDays(p.value)}
++              className={`px-3 h-8 rounded-md text-sm font-medium transition-colors ${
++                days === p.value
++                  ? 'bg-[hsl(var(--primary))] text-white'
++                  : 'hover:bg-[hsl(var(--muted))]'
++              }`}
++            >
++              {t(p.key)}
++            </button>
++          ))}
++        </div>
++      </div>
++
++      {/* Stats grid */}
++      <div>
++        <h2 className="text-sm font-semibold uppercase text-[hsl(var(--muted-foreground))] mb-3">
++          {t('admin_insights_overview_title')}
++        </h2>
++        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
++          <StatCard label={t('admin_insights_total_users')} value={fmt(overview?.total_users ?? 0)} />
++          <StatCard label={t('admin_insights_subscribed')} value={fmt(overview?.users_with_subscription ?? 0)} accent="blue" />
++          <StatCard label={t('admin_insights_paid_users')} value={fmt(overview?.paid_users ?? 0)} accent="green" />
++          <StatCard label={t('admin_insights_active_users')} value={fmt(overview?.active_users ?? 0)} accent="blue" />
++          <StatCard label={t('admin_insights_trial_users')} value={fmt(overview?.trial_users ?? 0)} />
++          <StatCard label={t('admin_insights_no_purchase')} value={fmt(overview?.no_purchase_users ?? 0)} accent="red" />
++          <StatCard label={t('admin_insights_conversion')} value={`${overview?.conversion_to_paid_pct ?? 0}%`} />
++          <StatCard label={t('admin_insights_paying_share')} value={`${overview?.paying_share_pct ?? 0}%`} />
++          <StatCard label={t('admin_insights_revenue')} value={`${fmt(overview?.total_revenue ?? 0, 2)} ₽`} accent="green" />
++          <StatCard label={t('admin_insights_payments_count')} value={fmt(overview?.total_payments ?? 0)} />
++          <StatCard label={t('admin_insights_avg_check')} value={`${fmt(overview?.avg_check ?? 0, 2)} ₽`} />
++        </div>
++      </div>
++
++      {/* New users chart */}
++      <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 sm:p-6">
++        <h2 className="text-lg font-semibold mb-4">{t('admin_insights_users_chart')}</h2>
++        {seriesLoading ? (
++          <div className="text-sm text-[hsl(var(--muted-foreground))]">{t('admin_funnel_loading')}</div>
++        ) : chartData.length === 0 ? (
++          <div className="flex flex-col items-center justify-center py-10 text-[hsl(var(--muted-foreground))]">
++            <BarChart3 size={40} className="mb-3 opacity-30" />
++            <p className="text-sm">{t('admin_funnel_empty')}</p>
++          </div>
++        ) : (
++          <ResponsiveContainer width="100%" height={280}>
++            <AreaChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
++              <defs>
++                <linearGradient id="gradUsers" x1="0" y1="0" x2="0" y2="1">
++                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.6} />
++                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
++                </linearGradient>
++                <linearGradient id="gradSubs" x1="0" y1="0" x2="0" y2="1">
++                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.6} />
++                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
++                </linearGradient>
++              </defs>
++              <CartesianGrid strokeDasharray="3 3" />
++              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
++              <YAxis tick={{ fontSize: 11 }} />
++              <Tooltip />
++              <Legend />
++              <Area type="monotone" dataKey="new_users" name={t('admin_insights_chart_users')} stroke="#f59e0b" fillOpacity={1} fill="url(#gradUsers)" />
++              <Area type="monotone" dataKey="new_subs" name={t('admin_insights_chart_subs')} stroke="#10b981" fillOpacity={1} fill="url(#gradSubs)" />
++            </AreaChart>
++          </ResponsiveContainer>
++        )}
++      </div>
++
++      {/* Revenue chart */}
++      <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 sm:p-6">
++        <h2 className="text-lg font-semibold mb-4">{t('admin_insights_revenue_chart')}</h2>
++        {seriesLoading ? (
++          <div className="text-sm text-[hsl(var(--muted-foreground))]">{t('admin_funnel_loading')}</div>
++        ) : chartData.length === 0 ? (
++          <div className="flex flex-col items-center justify-center py-10 text-[hsl(var(--muted-foreground))]">
++            <BarChart3 size={40} className="mb-3 opacity-30" />
++            <p className="text-sm">{t('admin_funnel_empty')}</p>
++          </div>
++        ) : (
++          <ResponsiveContainer width="100%" height={280}>
++            <LineChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
++              <CartesianGrid strokeDasharray="3 3" />
++              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
++              <YAxis tick={{ fontSize: 11 }} />
++              <Tooltip />
++              <Legend />
++              <Line type="monotone" dataKey="revenue" name={t('admin_insights_chart_revenue')} stroke="#3b82f6" strokeWidth={2} dot={false} />
++              <Line type="monotone" dataKey="payments" name={t('admin_insights_chart_payments')} stroke="#8b5cf6" strokeWidth={2} dot={false} />
++            </LineChart>
++          </ResponsiveContainer>
++        )}
++      </div>
++    </div>
++  )
++}
+diff --git a/web/routers/admin/__init__.py b/web/routers/admin/__init__.py
+index a7514c6..09077e4 100644
+--- a/web/routers/admin/__init__.py
++++ b/web/routers/admin/__init__.py
+@@ -12,6 +12,9 @@ from .broadcast import router as broadcast_router
+ from .panel_stats import router as panel_stats_router
+ from .panel_nodes import router as panel_nodes_router
+ from .panel_users import router as panel_users_router
++from .ads import router as ads_router
++from .funnel import router as funnel_router
++from .insights import router as insights_router
+ 
+ admin_router = APIRouter(prefix="/admin", tags=["admin"])
+ admin_router.include_router(auth_router)
+@@ -27,3 +30,6 @@ admin_router.include_router(broadcast_router)
+ admin_router.include_router(panel_stats_router)
+ admin_router.include_router(panel_nodes_router)
+ admin_router.include_router(panel_users_router)
++admin_router.include_router(ads_router)
++admin_router.include_router(funnel_router)
++admin_router.include_router(insights_router)
+diff --git a/web/routers/admin/funnel.py b/web/routers/admin/funnel.py
+new file mode 100644
+index 0000000..3575120
+--- /dev/null
++++ b/web/routers/admin/funnel.py
+@@ -0,0 +1,197 @@
++from datetime import date, datetime, timedelta, timezone
++from typing import Optional
++
++from fastapi import APIRouter, Depends, Query
++from sqlalchemy import and_, func, select
++from sqlalchemy.ext.asyncio import AsyncSession
++
++from db.models import (
++    Account,
++    AdAttribution,
++    AdCampaign,
++    Payment,
++    Subscription,
++    User,
++)
++from web.dependencies import get_current_admin, get_db
++from web.schemas.admin.funnel import (
++    FunnelBySourceItem,
++    FunnelBySourceResponse,
++    FunnelResponse,
++    FunnelStage,
++)
++
++router = APIRouter()
++
++
++STAGE_LABELS_RU = {
++    "registered": "Зарегистрировались",
++    "trial": "Активировали триал",
++    "first_payment": "Первая оплата",
++    "renewed": "Продлили подписку",
++    "active": "Активная подписка",
++}
++
++
++def _pct(part: int, whole: int) -> float:
++    if whole <= 0:
++        return 0.0
++    return round(part * 100.0 / whole, 2)
++
++
++def _date_to_dt(d: Optional[date], end_of_day: bool = False) -> Optional[datetime]:
++    if d is None:
++        return None
++    if end_of_day:
++        return datetime.combine(d, datetime.max.time()).replace(tzinfo=timezone.utc)
++    return datetime.combine(d, datetime.min.time()).replace(tzinfo=timezone.utc)
++
++
++@router.get("/funnel", response_model=FunnelResponse)
++async def get_funnel(
++    period_from: Optional[date] = Query(None),
++    period_to: Optional[date] = Query(None),
++    db: AsyncSession = Depends(get_db),
++    _admin: Account = Depends(get_current_admin),
++):
++    dt_from = _date_to_dt(period_from)
++    dt_to = _date_to_dt(period_to, end_of_day=True)
++
++    user_filters = []
++    if dt_from is not None:
++        user_filters.append(User.registration_date >= dt_from)
++    if dt_to is not None:
++        user_filters.append(User.registration_date <= dt_to)
++
++    payment_filters = [Payment.status == "succeeded"]
++    if dt_from is not None:
++        payment_filters.append(Payment.created_at >= dt_from)
++    if dt_to is not None:
++        payment_filters.append(Payment.created_at <= dt_to)
++
++    # Trial = subscription with provider IS NULL (paid subs always have a provider).
++    # The trial_activations table only covers new trials after that feature was added,
++    # so we use Subscription.provider IS NULL as the historical source of truth.
++    trial_filters = [Subscription.provider.is_(None)]
++    if dt_from is not None:
++        trial_filters.append(Subscription.start_date >= dt_from)
++    if dt_to is not None:
++        trial_filters.append(Subscription.start_date <= dt_to)
++
++    # 1. Registered users in period
++    registered_stmt = select(func.count(User.user_id))
++    if user_filters:
++        registered_stmt = registered_stmt.where(and_(*user_filters))
++    registered = int((await db.execute(registered_stmt)).scalar() or 0)
++
++    # 2. Trial activations (distinct users with at least one trial subscription)
++    trial_stmt = select(func.count(func.distinct(Subscription.user_id))).where(and_(*trial_filters))
++    trial = int((await db.execute(trial_stmt)).scalar() or 0)
++
++    # 3. First payment (distinct users who paid at least once)
++    paid_stmt = select(func.count(func.distinct(Payment.user_id))).where(and_(*payment_filters))
++    paid = int((await db.execute(paid_stmt)).scalar() or 0)
++
++    # 4. Renewed (users with >= 2 succeeded payments in period)
++    renewed_subq = (
++        select(Payment.user_id, func.count(Payment.payment_id).label("cnt"))
++        .where(and_(*payment_filters))
++        .group_by(Payment.user_id)
++        .having(func.count(Payment.payment_id) >= 2)
++        .subquery()
++    )
++    renewed_stmt = select(func.count()).select_from(renewed_subq)
++    renewed = int((await db.execute(renewed_stmt)).scalar() or 0)
++
++    # 5. Currently active subscriptions (period filter on Subscription.end_date if given)
++    active_stmt = select(func.count(func.distinct(Subscription.user_id))).where(
++        and_(Subscription.is_active.is_(True), Subscription.end_date > datetime.now(timezone.utc))
++    )
++    active = int((await db.execute(active_stmt)).scalar() or 0)
++
++    # Total revenue in period
++    revenue_stmt = select(func.coalesce(func.sum(Payment.amount), 0.0)).where(and_(*payment_filters))
++    revenue = float((await db.execute(revenue_stmt)).scalar() or 0.0)
++
++    counts = [
++        ("registered", registered),
++        ("trial", trial),
++        ("first_payment", paid),
++        ("renewed", renewed),
++        ("active", active),
++    ]
++    top = counts[0][1] if counts else 0
++    stages = []
++    for i, (key, count) in enumerate(counts):
++        prev = counts[i - 1][1] if i > 0 else top
++        stages.append(
++            FunnelStage(
++                key=key,
++                label=STAGE_LABELS_RU[key],
++                count=count,
++                pct_from_top=_pct(count, top),
++                pct_from_prev=_pct(count, prev) if prev > 0 else 0.0,
++            )
++        )
++
++    return FunnelResponse(
++        stages=stages,
++        period_from=period_from,
++        period_to=period_to,
++        total_revenue=revenue,
++        total_users=registered,
++    )
++
++
++@router.get("/funnel/by-source", response_model=FunnelBySourceResponse)
++async def get_funnel_by_source(
++    db: AsyncSession = Depends(get_db),
++    _admin: Account = Depends(get_current_admin),
++):
++    """Per-source aggregate: starts (attributed), trials, payers, revenue."""
++    # Aggregate across campaigns grouped by source
++    starts_stmt = (
++        select(AdCampaign.source, func.count(AdAttribution.user_id).label("starts"))
++        .select_from(AdCampaign)
++        .join(AdAttribution, AdAttribution.ad_campaign_id == AdCampaign.ad_campaign_id, isouter=True)
++        .group_by(AdCampaign.source)
++    )
++    starts_rows = (await db.execute(starts_stmt)).all()
++    by_source = {row[0]: {"starts": int(row[1] or 0), "trials": 0, "payers": 0, "revenue": 0.0} for row in starts_rows}
++
++    trials_stmt = (
++        select(AdCampaign.source, func.count(AdAttribution.user_id).label("trials"))
++        .select_from(AdCampaign)
++        .join(AdAttribution, AdAttribution.ad_campaign_id == AdCampaign.ad_campaign_id)
++        .where(AdAttribution.trial_activated_at.is_not(None))
++        .group_by(AdCampaign.source)
++    )
++    for row in (await db.execute(trials_stmt)).all():
++        src = row[0]
++        if src in by_source:
++            by_source[src]["trials"] = int(row[1] or 0)
++
++    # Payers + revenue: join payments via attributions
++    payers_stmt = (
++        select(
++            AdCampaign.source,
++            func.count(func.distinct(Payment.user_id)).label("payers"),
++            func.coalesce(func.sum(Payment.amount), 0.0).label("revenue"),
++        )
++        .select_from(AdCampaign)
++        .join(AdAttribution, AdAttribution.ad_campaign_id == AdCampaign.ad_campaign_id)
++        .join(Payment, Payment.user_id == AdAttribution.user_id)
++        .where(and_(Payment.status == "succeeded", Payment.created_at >= AdAttribution.first_start_at))
++        .group_by(AdCampaign.source)
++    )
++    for row in (await db.execute(payers_stmt)).all():
++        src = row[0]
++        if src in by_source:
++            by_source[src]["payers"] = int(row[1] or 0)
++            by_source[src]["revenue"] = float(row[2] or 0.0)
++
++    items = [
++        FunnelBySourceItem(source=src, **data)
++        for src, data in sorted(by_source.items(), key=lambda kv: -kv[1]["revenue"])
++    ]
++    return FunnelBySourceResponse(items=items)
+diff --git a/web/routers/admin/insights.py b/web/routers/admin/insights.py
+new file mode 100644
+index 0000000..eedaf0b
+--- /dev/null
++++ b/web/routers/admin/insights.py
+@@ -0,0 +1,200 @@
++from datetime import date, datetime, timedelta, timezone
++from typing import Optional
++
++from fastapi import APIRouter, Depends, Query
++from sqlalchemy import and_, cast, func, select
++from sqlalchemy.dialects.postgresql import DATE
++from sqlalchemy.ext.asyncio import AsyncSession
++
++from db.models import Account, Payment, Subscription, User
++from web.dependencies import get_current_admin, get_db
++from web.schemas.admin.insights import (
++    InsightsOverview,
++    InsightsTimeseriesResponse,
++    TimeseriesPoint,
++)
++
++router = APIRouter()
++
++
++def _to_date(dt: Optional[date], end_of_day: bool = False) -> Optional[datetime]:
++    if dt is None:
++        return None
++    t = datetime.max.time() if end_of_day else datetime.min.time()
++    return datetime.combine(dt, t).replace(tzinfo=timezone.utc)
++
++
++@router.get("/insights/overview", response_model=InsightsOverview)
++async def insights_overview(
++    db: AsyncSession = Depends(get_db),
++    _admin: Account = Depends(get_current_admin),
++):
++    # Total registered users
++    total_users = int((await db.execute(select(func.count(User.user_id)))).scalar() or 0)
++
++    # Users with at least one subscription (trial or paid)
++    users_with_sub = int(
++        (await db.execute(select(func.count(func.distinct(Subscription.user_id))))).scalar() or 0
++    )
++
++    # Users with at least one trial-only subscription (provider is null)
++    trial_users = int(
++        (
++            await db.execute(
++                select(func.count(func.distinct(Subscription.user_id))).where(
++                    Subscription.provider.is_(None)
++                )
++            )
++        ).scalar()
++        or 0
++    )
++
++    # Active users (subscription active right now)
++    now = datetime.now(timezone.utc)
++    active_users = int(
++        (
++            await db.execute(
++                select(func.count(func.distinct(Subscription.user_id))).where(
++                    and_(Subscription.is_active.is_(True), Subscription.end_date > now)
++                )
++            )
++        ).scalar()
++        or 0
++    )
++
++    # Users who paid at least once
++    paid_users = int(
++        (
++            await db.execute(
++                select(func.count(func.distinct(Payment.user_id))).where(
++                    Payment.status == "succeeded"
++                )
++            )
++        ).scalar()
++        or 0
++    )
++
++    # Total revenue
++    total_revenue = float(
++        (
++            await db.execute(
++                select(func.coalesce(func.sum(Payment.amount), 0.0)).where(
++                    Payment.status == "succeeded"
++                )
++            )
++        ).scalar()
++        or 0.0
++    )
++
++    # Count of succeeded payments
++    total_payments = int(
++        (
++            await db.execute(
++                select(func.count(Payment.payment_id)).where(Payment.status == "succeeded")
++            )
++        ).scalar()
++        or 0
++    )
++
++    avg_check = (total_revenue / total_payments) if total_payments > 0 else 0.0
++    no_purchase = max(0, total_users - paid_users)
++    conv = round(paid_users * 100.0 / total_users, 2) if total_users > 0 else 0.0
++    paying_share = round(paid_users * 100.0 / users_with_sub, 2) if users_with_sub > 0 else 0.0
++
++    return InsightsOverview(
++        total_users=total_users,
++        users_with_subscription=users_with_sub,
++        active_users=active_users,
++        paid_users=paid_users,
++        no_purchase_users=no_purchase,
++        total_revenue=round(total_revenue, 2),
++        total_payments=total_payments,
++        avg_check=round(avg_check, 2),
++        conversion_to_paid_pct=conv,
++        trial_users=trial_users,
++        paying_share_pct=paying_share,
++    )
++
++
++@router.get("/insights/timeseries", response_model=InsightsTimeseriesResponse)
++async def insights_timeseries(
++    period_from: Optional[date] = Query(None),
++    period_to: Optional[date] = Query(None),
++    days: int = Query(90, ge=1, le=730),
++    db: AsyncSession = Depends(get_db),
++    _admin: Account = Depends(get_current_admin),
++):
++    if period_to is None:
++        period_to = date.today()
++    if period_from is None:
++        period_from = period_to - timedelta(days=days)
++
++    dt_from = _to_date(period_from)
++    dt_to = _to_date(period_to, end_of_day=True)
++
++    # New users grouped by day
++    users_q = (
++        select(
++            cast(User.registration_date, DATE).label("d"),
++            func.count().label("n"),
++        )
++        .where(and_(User.registration_date >= dt_from, User.registration_date <= dt_to))
++        .group_by("d")
++    )
++    users_by_day = {row[0]: int(row[1]) for row in (await db.execute(users_q)).all()}
++
++    # New subscriptions by day (using start_date; fall back to None ignored)
++    subs_q = (
++        select(
++            cast(Subscription.start_date, DATE).label("d"),
++            func.count(func.distinct(Subscription.user_id)).label("n"),
++        )
++        .where(
++            and_(
++                Subscription.start_date.is_not(None),
++                Subscription.start_date >= dt_from,
++                Subscription.start_date <= dt_to,
++            )
++        )
++        .group_by("d")
++    )
++    subs_by_day = {row[0]: int(row[1]) for row in (await db.execute(subs_q)).all()}
++
++    # Revenue + payment count by day
++    pays_q = (
++        select(
++            cast(Payment.created_at, DATE).label("d"),
++            func.coalesce(func.sum(Payment.amount), 0.0).label("revenue"),
++            func.count().label("count"),
++        )
++        .where(
++            and_(
++                Payment.status == "succeeded",
++                Payment.created_at >= dt_from,
++                Payment.created_at <= dt_to,
++            )
++        )
++        .group_by("d")
++    )
++    pays_by_day = {
++        row[0]: (float(row[1] or 0.0), int(row[2] or 0))
++        for row in (await db.execute(pays_q)).all()
++    }
++
++    # Build full date range with zeros where missing
++    points: list[TimeseriesPoint] = []
++    cur = period_from
++    while cur <= period_to:
++        revenue, pcount = pays_by_day.get(cur, (0.0, 0))
++        points.append(
++            TimeseriesPoint(
++                date=cur,
++                new_users=users_by_day.get(cur, 0),
++                new_subscriptions=subs_by_day.get(cur, 0),
++                revenue=round(revenue, 2),
++                payments_count=pcount,
++            )
++        )
++        cur = cur + timedelta(days=1)
++
++    return InsightsTimeseriesResponse(period_from=period_from, period_to=period_to, points=points)
+diff --git a/web/schemas/admin/insights.py b/web/schemas/admin/insights.py
+new file mode 100644
+index 0000000..1aab020
+--- /dev/null
++++ b/web/schemas/admin/insights.py
+@@ -0,0 +1,32 @@
++from datetime import date
++from typing import List, Optional
++
++from pydantic import BaseModel
++
++
++class InsightsOverview(BaseModel):
++    total_users: int
++    users_with_subscription: int
++    active_users: int
++    paid_users: int
++    no_purchase_users: int
++    total_revenue: float
++    total_payments: int
++    avg_check: float
++    conversion_to_paid_pct: float
++    trial_users: int
++    paying_share_pct: float
++
++
++class TimeseriesPoint(BaseModel):
++    date: date
++    new_users: int
++    new_subscriptions: int
++    revenue: float
++    payments_count: int
++
++
++class InsightsTimeseriesResponse(BaseModel):
++    period_from: date
++    period_to: date
++    points: List[TimeseriesPoint]

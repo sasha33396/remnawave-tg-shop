@@ -1,0 +1,42 @@
+diff --git a/web/routers/admin/funnel.py b/web/routers/admin/funnel.py
+--- a/web/routers/admin/funnel.py
++++ b/web/routers/admin/funnel.py
+@@ -10,7 +10,6 @@ from db.models import (
+     AdCampaign,
+     Payment,
+     Subscription,
+-    TrialActivation,
+     User,
+ )
+ from web.dependencies import get_current_admin, get_db
+@@ -71,11 +70,14 @@ async def get_funnel(
+     if dt_to is not None:
+         payment_filters.append(Payment.created_at <= dt_to)
+ 
+-    trial_filters = []
++    # Trial = subscription with provider IS NULL (paid subs always have a provider).
++    # The trial_activations table only covers new trials after that feature was added,
++    # so we use Subscription.provider IS NULL as the historical source of truth.
++    trial_filters = [Subscription.provider.is_(None)]
+     if dt_from is not None:
+-        trial_filters.append(TrialActivation.activated_at >= dt_from)
++        trial_filters.append(Subscription.start_date >= dt_from)
+     if dt_to is not None:
+-        trial_filters.append(TrialActivation.activated_at <= dt_to)
++        trial_filters.append(Subscription.start_date <= dt_to)
+ 
+     # 1. Registered users in period
+     registered_stmt = select(func.count(User.user_id))
+@@ -83,10 +85,8 @@ async def get_funnel(
+         registered_stmt = registered_stmt.where(and_(*user_filters))
+     registered = int((await db.execute(registered_stmt)).scalar() or 0)
+ 
+-    # 2. Trial activations (distinct users)
+-    trial_stmt = select(func.count(func.distinct(TrialActivation.user_id)))
+-    if trial_filters:
+-        trial_stmt = trial_stmt.where(and_(*trial_filters))
++    # 2. Trial activations (distinct users with at least one trial subscription)
++    trial_stmt = select(func.count(func.distinct(Subscription.user_id))).where(and_(*trial_filters))
+     trial = int((await db.execute(trial_stmt)).scalar() or 0)
+ 
+     # 3. First payment (distinct users who paid at least once)

@@ -33,6 +33,9 @@ const AdminUsersPage = lazy(() => import('@/pages/admin/AdminUsersPage').then(({
 const AdminUserDetailPage = lazy(() => import('@/pages/admin/AdminUserDetailPage').then(({ AdminUserDetailPage }) => ({ default: AdminUserDetailPage })))
 const AdminPaymentsPage = lazy(() => import('@/pages/admin/AdminPaymentsPage').then(({ AdminPaymentsPage }) => ({ default: AdminPaymentsPage })))
 const AdminPromosPage = lazy(() => import('@/pages/admin/AdminPromosPage').then(({ AdminPromosPage }) => ({ default: AdminPromosPage })))
+const AdminAdsPage = lazy(() => import('@/pages/admin/AdminAdsPage').then(({ AdminAdsPage }) => ({ default: AdminAdsPage })))
+const AdminFunnelPage = lazy(() => import('@/pages/admin/AdminFunnelPage').then(({ AdminFunnelPage }) => ({ default: AdminFunnelPage })))
+const AdminInsightsPage = lazy(() => import('@/pages/admin/AdminInsightsPage').then(({ AdminInsightsPage }) => ({ default: AdminInsightsPage })))
 const PanelStatsPage = lazy(() => import('@/pages/admin/PanelStatsPage').then(({ PanelStatsPage }) => ({ default: PanelStatsPage })))
 const NodesPage = lazy(() => import('@/pages/admin/NodesPage').then(({ NodesPage }) => ({ default: NodesPage })))
 const NodeDetailPage = lazy(() => import('@/pages/admin/NodeDetailPage').then(({ NodeDetailPage }) => ({ default: NodeDetailPage })))
@@ -159,6 +162,9 @@ export default function App() {
               <Route path="users/:userId" element={<ErrorBoundary><AdminUserDetailPage /></ErrorBoundary>} />
               <Route path="payments" element={<ErrorBoundary><AdminPaymentsPage /></ErrorBoundary>} />
               <Route path="promos" element={<ErrorBoundary><AdminPromosPage /></ErrorBoundary>} />
+              <Route path="ads" element={<ErrorBoundary><AdminAdsPage /></ErrorBoundary>} />
+              <Route path="funnel" element={<ErrorBoundary><AdminFunnelPage /></ErrorBoundary>} />
+              <Route path="insights" element={<ErrorBoundary><AdminInsightsPage /></ErrorBoundary>} />
               <Route path="broadcast" element={<ErrorBoundary><BroadcastPage /></ErrorBoundary>} />
               <Route path="panel" element={<ErrorBoundary><PanelStatsPage /></ErrorBoundary>} />
               <Route path="panel/users" element={<ErrorBoundary><PanelUsersPage /></ErrorBoundary>} />
