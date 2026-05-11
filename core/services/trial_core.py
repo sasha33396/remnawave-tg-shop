@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.settings import Settings
 from db.models import Account, User
-from core.dal import account_dal, subscription_dal, trial_activation_dal, user_dal
+from core.dal import account_dal, ad_dal, subscription_dal, trial_activation_dal, user_dal
 from core.services.panel_client import PanelApiService
 
 
@@ -325,6 +325,7 @@ async def _activate_trial_for_user_id(
             site_user_id=site_user_id,
             source=source,
         )
+        await ad_dal.mark_trial_activated(session, user_id)
         await trial_activation_dal.consume_trial_reset_grants(
             session,
             account_id=account.id if account else None,
