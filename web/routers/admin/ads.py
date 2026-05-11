@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import Account
-from web.dependencies import get_db, get_current_admin
+from config.settings import Settings
+from web.dependencies import get_db, get_current_admin, get_settings_dep
 from web.schemas.admin.ads import (
     AdminAdCampaignItem,
     AdminAdCampaignStats,
@@ -17,11 +18,16 @@ from web.middleware.rate_limit import admin_action_limit
 router = APIRouter()
 
 
-def _to_item(campaign, stats: dict) -> AdminAdCampaignItem:
+def _to_item(campaign, stats: dict, settings: Settings) -> AdminAdCampaignItem:
+    telegram_link = None
+    if settings.BOT_USERNAME:
+        telegram_link = f"https://t.me/{settings.BOT_USERNAME.lstrip('@')}?start={campaign.start_param}"
+
     return AdminAdCampaignItem(
         ad_campaign_id=campaign.ad_campaign_id,
         source=campaign.source,
         start_param=campaign.start_param,
+        telegram_link=telegram_link,
         cost=float(campaign.cost or 0),
         is_active=bool(campaign.is_active),
         created_at=campaign.created_at,
@@ -56,6 +62,7 @@ async def list_ads(
     page_size: int = Query(20, ge=1, le=100),
     only_active: bool = Query(False),
     db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings_dep),
     _admin: Account = Depends(get_current_admin),
 ):
     campaigns = await ad_dal.list_campaigns_paged(
@@ -65,7 +72,7 @@ async def list_ads(
     items = []
     for c in campaigns:
         stats = await ad_dal.get_campaign_stats(db, c.ad_campaign_id)
-        items.append(_to_item(c, stats))
+        items.append(_to_item(c, stats, settings))
     return AdminAdsListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
@@ -73,13 +80,14 @@ async def list_ads(
 async def get_ad(
     campaign_id: int,
     db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings_dep),
     _admin: Account = Depends(get_current_admin),
 ):
     campaign = await ad_dal.get_campaign_by_id(db, campaign_id)
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
     stats = await ad_dal.get_campaign_stats(db, campaign_id)
-    return _to_item(campaign, stats)
+    return _to_item(campaign, stats, settings)
 
 
 @router.post(
@@ -89,6 +97,7 @@ async def get_ad(
 async def create_ad(
     body: AdCampaignCreateRequest,
     db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings_dep),
     _admin: Account = Depends(get_current_admin),
 ):
     try:
@@ -104,7 +113,7 @@ async def create_ad(
         if str(ve) == "ad_campaign_start_param_exists":
             raise HTTPException(status_code=409, detail="start_param already exists")
         raise HTTPException(status_code=422, detail=str(ve))
-    return _to_item(campaign, {"starts": 0, "trials": 0, "payers": 0, "revenue": 0.0})
+    return _to_item(campaign, {"starts": 0, "trials": 0, "payers": 0, "revenue": 0.0}, settings)
 
 
 @router.patch(
@@ -115,6 +124,7 @@ async def update_ad(
     campaign_id: int,
     body: AdCampaignUpdateRequest,
     db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings_dep),
     _admin: Account = Depends(get_current_admin),
 ):
     campaign = await ad_dal.get_campaign_by_id(db, campaign_id)
@@ -131,7 +141,7 @@ async def update_ad(
     await db.commit()
     await db.refresh(campaign)
     stats = await ad_dal.get_campaign_stats(db, campaign_id)
-    return _to_item(campaign, stats)
+    return _to_item(campaign, stats, settings)
 
 
 @router.delete(

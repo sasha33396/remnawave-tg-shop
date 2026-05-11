@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Megaphone, Plus, Trash2 } from 'lucide-react'
+import { Check, Copy, Megaphone, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { DataTable, type Column } from '@/components/admin/DataTable'
 import { useToast } from '@/hooks/useToast'
@@ -142,6 +142,7 @@ export function AdminAdsPage() {
   const [pageSize, setPageSize] = useState(20)
   const [showCreate, setShowCreate] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<AdminAdCampaignItem | null>(null)
+  const [copiedCampaignId, setCopiedCampaignId] = useState<number | null>(null)
 
   const { data: overview } = useQuery({
     queryKey: ['admin', 'ads', 'overview'],
@@ -169,13 +170,52 @@ export function AdminAdsPage() {
     queryClient.invalidateQueries({ queryKey: ['admin', 'ads'] })
   }
 
+  async function copyAdLink(item: AdminAdCampaignItem) {
+    const text = item.telegram_link ?? item.start_param
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      const el = document.createElement('textarea')
+      el.value = text
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand('copy')
+      document.body.removeChild(el)
+    }
+    setCopiedCampaignId(item.ad_campaign_id)
+    toast.success(t('copied'))
+    window.setTimeout(() => setCopiedCampaignId(null), 2000)
+  }
+
   const roi = overview && overview.total_cost > 0
     ? ((overview.total_revenue - overview.total_cost) / overview.total_cost) * 100
     : null
 
   const columns: Column<AdminAdCampaignItem>[] = [
     { key: 'source', header: t('admin_ads_source_label'), size: 140, render: (r) => <span className="font-medium">{r.source}</span> },
-    { key: 'start_param', header: 'start=', size: 130, render: (r) => <code className="text-xs">{r.start_param}</code> },
+    {
+      key: 'start_param',
+      header: t('admin_ads_start_param_label'),
+      size: 250,
+      minSize: 190,
+      render: (r) => {
+        const display = r.telegram_link ?? `start=${r.start_param}`
+        const copied = copiedCampaignId === r.ad_campaign_id
+        return (
+          <div className="flex min-w-0 items-center gap-2">
+            <code className="min-w-0 truncate text-xs" title={display}>{display}</code>
+            <button
+              type="button"
+              onClick={() => copyAdLink(r)}
+              className="shrink-0 rounded p-1.5 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
+              title={t('admin_ads_copy_link')}
+            >
+              {copied ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
+            </button>
+          </div>
+        )
+      },
+    },
     { key: 'cost', header: t('admin_ads_cost_label'), size: 100, render: (r) => `${fmtMoney(r.cost)} ₽` },
     { key: 'starts', header: t('admin_ads_starts'), size: 80, render: (r) => r.stats.starts },
     { key: 'trials', header: t('admin_ads_trials'), size: 80, render: (r) => r.stats.trials },

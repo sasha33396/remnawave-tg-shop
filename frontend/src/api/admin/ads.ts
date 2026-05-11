@@ -11,6 +11,7 @@ export interface AdminAdCampaignItem {
   ad_campaign_id: number
   source: string
   start_param: string
+  telegram_link: string | null
   cost: number
   is_active: boolean
   created_at: string | null
