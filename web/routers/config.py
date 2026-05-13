@@ -29,4 +29,7 @@ async def get_public_branding(
         response.refund_policy_url = settings.REFUND_POLICY_URL
     if settings.SUPPORT_LINK:
         response.support_link = settings.SUPPORT_LINK
+    if settings.CHAT_WIDGET_PROVIDER and settings.CHAT_WIDGET_ID:
+        response.chat_widget_provider = settings.CHAT_WIDGET_PROVIDER.strip().lower()
+        response.chat_widget_id = settings.CHAT_WIDGET_ID.strip()
     return response

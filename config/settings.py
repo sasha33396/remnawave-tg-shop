@@ -21,6 +21,14 @@ class Settings(BaseSettings):
     DEFAULT_LANGUAGE: str = Field(default="ru")
 
     SUPPORT_LINK: Optional[str] = Field(default=None)
+    CHAT_WIDGET_PROVIDER: Optional[str] = Field(
+        default=None,
+        description="External live-chat widget provider for the web app. Supported: 'tawk', 'crisp'.",
+    )
+    CHAT_WIDGET_ID: Optional[str] = Field(
+        default=None,
+        description="Widget id. For tawk: 'propertyId/widgetId'. For crisp: website id.",
+    )
     SERVER_STATUS_URL: Optional[str] = Field(default=None)
     TERMS_OF_SERVICE_URL: Optional[str] = Field(default=None)
     PRIVACY_POLICY_URL: Optional[str] = Field(default=None)

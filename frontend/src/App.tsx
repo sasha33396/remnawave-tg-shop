@@ -7,6 +7,7 @@ import { ToastProvider } from '@/lib/toast-context'
 import { Toaster } from '@/components/ui/toaster'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { BrandingProvider } from '@/hooks/BrandingProvider'
+import { ChatWidget } from '@/components/ChatWidget'
 
 const LegalPage = lazy(() => import('@/pages/LegalPage').then(({ LegalPage }) => ({ default: LegalPage })))
 const LoginPage = lazy(() => import('@/pages/LoginPage').then(({ LoginPage }) => ({ default: LoginPage })))
@@ -58,6 +59,7 @@ export default function App() {
         <Toaster />
         <AuthProvider>
           <BrandingProvider>
+            <ChatWidget />
             <Suspense fallback={<RouteLoader />}>
             <Routes>
             {/* Public */}

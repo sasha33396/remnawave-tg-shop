@@ -20,6 +20,8 @@ export interface PublicBrandingResponse extends BrandingResponse {
   referral_enabled: boolean
   devices_enabled: boolean
   support_link: string | null
+  chat_widget_provider: string | null
+  chat_widget_id: string | null
 }
 
 export interface BrandingUpdateRequest {

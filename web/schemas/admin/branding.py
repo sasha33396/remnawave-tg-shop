@@ -39,3 +39,5 @@ class PublicBrandingResponse(BrandingResponse):
     referral_enabled: bool
     devices_enabled: bool
     support_link: Optional[str] = None
+    chat_widget_provider: Optional[str] = None
+    chat_widget_id: Optional[str] = None
