@@ -27,4 +27,6 @@ async def get_public_branding(
         response.personal_data_url = settings.PERSONAL_DATA_URL
     if not response.refund_policy_url and settings.REFUND_POLICY_URL:
         response.refund_policy_url = settings.REFUND_POLICY_URL
+    if settings.SUPPORT_LINK:
+        response.support_link = settings.SUPPORT_LINK
     return response

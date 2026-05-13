@@ -38,3 +38,4 @@ class PublicBrandingResponse(BrandingResponse):
     news_enabled: bool
     referral_enabled: bool
     devices_enabled: bool
+    support_link: Optional[str] = None

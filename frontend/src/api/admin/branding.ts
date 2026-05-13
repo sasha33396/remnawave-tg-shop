@@ -19,6 +19,7 @@ export interface PublicBrandingResponse extends BrandingResponse {
   news_enabled: boolean
   referral_enabled: boolean
   devices_enabled: boolean
+  support_link: string | null
 }
 
 export interface BrandingUpdateRequest {

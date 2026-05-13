@@ -19,6 +19,7 @@ import {
   LogOut,
   Newspaper,
   Settings,
+  LifeBuoy,
 } from 'lucide-react'
 
 function FitText({ text }: { text: string }) {
@@ -72,7 +73,7 @@ export function Sidebar() {
   const { logout, user } = useAuth()
   const { t } = useTranslation()
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const { newsEnabled, referralEnabled, devicesEnabled, branding } = useBrandingContext()
+  const { newsEnabled, referralEnabled, devicesEnabled, branding, supportLink } = useBrandingContext()
 
   const { data: adminData } = useQuery({
     queryKey: ['admin', 'me'],
@@ -127,6 +128,17 @@ export function Sidebar() {
       </nav>
 
       <div className="space-y-1 mt-2 pt-2 border-t border-[hsl(var(--border))]">
+        {supportLink && (
+          <a
+            href={supportLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))] transition-colors"
+          >
+            <LifeBuoy size={18} />
+            {t('nav_support')}
+          </a>
+        )}
         {isAdmin && (
           <NavLink
             to="/admin"
